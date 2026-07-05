@@ -22,6 +22,10 @@ export default function DeliveryVerification() {
             id: item.id,
             noOfPkgs: item.no_of_pkgs,
             saidToContain: item.said_to_contain,
+            weightKg: item.weight_kg,
+            ratePerKg: item.rate_per_kg,
+            freightAmount: item.freight_amount,
+            senderRemarks: item.remarks,
             receivedQty: item.received_qty || item.no_of_pkgs || "",
             itemCondition: item.item_condition || "OK",
             receivingRemarks: item.receiving_remarks || "",
@@ -101,6 +105,13 @@ export default function DeliveryVerification() {
         </div>
         <div>
           <h3 className="text-xs uppercase tracking-wider text-on-surface-variant font-semibold mb-xs">
+            Consignee
+          </h3>
+          <p className="font-medium">{lr.consignee_name}</p>
+          <p className="text-sm text-on-surface-variant">{lr.consignee_address}</p>
+        </div>
+        <div>
+          <h3 className="text-xs uppercase tracking-wider text-on-surface-variant font-semibold mb-xs">
             Route
           </h3>
           <p className="font-medium">
@@ -112,6 +123,14 @@ export default function DeliveryVerification() {
             Invoice / E-way Bill
           </h3>
           <p className="text-sm">{lr.invoice_no || "—"} / {lr.eway_bill_no || "—"}</p>
+        </div>
+        <div>
+          <h3 className="text-xs uppercase tracking-wider text-on-surface-variant font-semibold mb-xs">
+            Freight
+          </h3>
+          <p className="text-sm">
+            {lr.freight_terms} — ₹{Number(lr.amount).toLocaleString("en-IN")}
+          </p>
         </div>
       </section>
 
@@ -127,9 +146,13 @@ export default function DeliveryVerification() {
             <tr className="text-xs text-on-surface-variant uppercase tracking-wider border-b border-hairline">
               <th className="px-lg py-sm">Material</th>
               <th className="px-lg py-sm">Sent Qty</th>
+              <th className="px-lg py-sm">Weight</th>
+              <th className="px-lg py-sm">Rate/Kg</th>
+              <th className="px-lg py-sm">Freight</th>
+              <th className="px-lg py-sm">Sender Remarks</th>
               <th className="px-lg py-sm">Received Qty</th>
               <th className="px-lg py-sm">Condition</th>
-              <th className="px-lg py-sm">Remarks</th>
+              <th className="px-lg py-sm">Recv. Remarks</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-hairline">
@@ -137,6 +160,10 @@ export default function DeliveryVerification() {
               <tr key={row.id}>
                 <td className="px-lg py-md font-medium">{row.saidToContain || "—"}</td>
                 <td className="px-lg py-md text-on-surface-variant">{row.noOfPkgs || "—"}</td>
+                <td className="px-lg py-md text-on-surface-variant">{row.weightKg || "—"}</td>
+                <td className="px-lg py-md text-on-surface-variant">{row.ratePerKg || "—"}</td>
+                <td className="px-lg py-md text-on-surface-variant">{row.freightAmount || "—"}</td>
+                <td className="px-lg py-md text-on-surface-variant">{row.senderRemarks || "—"}</td>
                 <td className="px-lg py-md">
                   <input
                     className={`input-sm w-24 ${row.itemCondition !== "OK" ? "border-ruby text-ruby" : ""}`}

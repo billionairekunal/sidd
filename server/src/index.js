@@ -8,7 +8,7 @@ import clientRoutes from "./routes/clients.js";
 import lrRoutes from "./routes/lrs.js";
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 4005;
 
 app.use(cors());
 app.use(express.json());

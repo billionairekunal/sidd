@@ -27,7 +27,8 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(`/api${path}`, {
+  const baseUrl = import.meta.env.VITE_API_URL || "/api";
+  const res = await fetch(`${baseUrl}${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
