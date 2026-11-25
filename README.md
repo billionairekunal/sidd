@@ -7,32 +7,30 @@ Phase 2 checkpoints: security gate-out and warehouse delivery confirmation.
 
 ## Stack
 
-- **server/** — Express API, Node's built-in `node:sqlite` for storage, JWT auth.
-- **client/** — React (Vite) + Tailwind, calling the API via a dev-server proxy.
+One **Next.js 16** (App Router) app — screens and API together. Needs Node 22.5+ (for `node:sqlite`).
+
+- `src/app/` — Next.js routes: one `page.jsx` per screen, and `api/**/route.js` for the API.
+- `src/views/` — the screen components; `src/components/` — layout, header, `Guard` (role gate).
+- `src/server/` — `db.js` (Node's built-in `node:sqlite`), `auth.js` (JWT + role checks),
+  `routes/*.js` (all API logic, including the LR status state machine).
+- Tailwind CSS 3 for styling.
 
 ## Run it
 
-Two terminals:
-
 ```bash
-cd server
 npm install   # first time only
-npm run dev   # http://localhost:4000
+npm run dev   # http://localhost:3323
 ```
 
-```bash
-cd client
-npm install   # first time only
-npm run dev   # http://localhost:5173
-```
+For production: `npm run build` then `npm start` (also on port 3323).
 
-Open http://localhost:5173 and sign in with one of three roles (toggle on the login screen):
+Open http://localhost:3323 and sign in with one of three roles (toggle on the login screen):
 
 - **Office Staff:** Employee ID `EMP-4920` / password `dispatch123` — Dashboard, History (LR list), Settings, plus a "Reports" view (Live Arrivals board).
 - **Security Checker:** Employee ID `SEC-1001` / password `gate123` — Gate Control + Departure Log.
 - **Receiver:** Employee ID `REC-2001` / password `receive123` — Incoming Deliveries, Delivery Log, Inspections (your own past verifications), and Reconciliation (Payment & Finance Tracking).
 
-The SQLite database is created at `server/data/erp.sqlite3` on first run, seeded with demo
+The SQLite database is created at `data/erp.sqlite3` on first run, seeded with demo
 vehicles and clients (no LRs — create your own from the dashboard).
 
 ## What's implemented vs. the full spec
@@ -52,7 +50,7 @@ the LR operator deliberately excluded from self-approving:
   read-only "Payments Received" summary on its own Dashboard but can't mark anything Paid itself.
 
 The full state machine (`Draft → In Transit → Delivered → Paid`, with `Disputed`/`Cancelled`
-branches) is enforced authoritatively in `server/src/routes/lrs.js`'s `TRANSITIONS` table — any
+branches) is enforced authoritatively in `src/server/routes/lrs.js`'s `TRANSITIONS` table — any
 transition not explicitly listed there is rejected with 400 regardless of role, and each listed
 transition names exactly which role(s) may perform it (403 otherwise). The frontend's per-role
 buttons are just a convenience on top of that; the API is the real gate.

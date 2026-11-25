@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: var(--font-sans), "Inter", system-ui, -apple-system, sans-serif;
+  color: #1f2b37;
+  background: #f4f6f8;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Thin, quiet scrollbars like the sidebar in the reference design */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c5d0d8 transparent;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  .invoice-sheet {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    zoom: 1 !important; /* undo the on-screen phone fit when printing */
+  }
+}
+
+@layer components {
+  .input {
+    @apply w-full border border-hairline bg-surface-bright rounded-lg py-sm px-md text-sm focus:outline-none focus:ring-2 focus:ring-primary;
+  }
+  .input-sm {
+    @apply w-full border border-hairline bg-surface-bright rounded py-xs px-xs text-sm focus:outline-none focus:ring-2 focus:ring-primary;
+  }
+}
+
+/* Phones: keep table rows on one line; each table scrolls sideways inside its card. */
+@media (max-width: 767px) {
+  main table {
+    display: block; /* lets the table scroll horizontally on its own */
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  main table th,
+  main table td {
+    white-space: nowrap;
+  }
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
