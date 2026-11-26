@@ -12,6 +12,7 @@ const TABS = [
   { to: "/reports", label: "Live Arrivals", officeOnly: true },
   { to: "/fleet", label: "Fleet", officeOnly: true },
   { to: "/payments", label: "Payments", officeOnly: true },
+  { to: "/expenses", label: "Expenses", officeOnly: true },
 ];
 
 export default function OfficeHeader() {

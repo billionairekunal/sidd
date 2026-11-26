@@ -62,6 +62,13 @@ export const api = {
     renew: (id, payload) => request(`/vehicles/${id}/renewals`, { method: "POST", body: payload }),
   },
 
+  expenses: {
+    list: (month) => request(`/expenses?month=${month}`),
+    create: (payload) => request("/expenses", { method: "POST", body: payload }),
+    update: (id, payload) => request(`/expenses/${id}`, { method: "PATCH", body: payload }),
+    remove: (id) => request(`/expenses/${id}`, { method: "DELETE" }),
+  },
+
   clients: {
     list: () => request("/clients"),
     create: (payload) => request("/clients", { method: "POST", body: payload }),

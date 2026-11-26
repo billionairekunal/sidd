@@ -405,7 +405,7 @@ function Empty({ text }) {
   return <p className="rounded-lg border border-dashed border-hairline bg-white py-12 text-center text-[14px] text-ink-mute">{text}</p>;
 }
 
-function Modal({ title, onClose, children, wide }) {
+export function Modal({ title, onClose, children, wide }) {
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
