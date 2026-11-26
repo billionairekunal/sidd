@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "../lib/api";
+import { useAuth } from "../lib/AuthContext";
 import OfficeHeader from "../components/OfficeHeader";
 import ClientCombobox from "../components/ClientCombobox";
 import Select from "../components/Select";
@@ -42,6 +43,9 @@ function todayLocalDate() {
 
 export default function NewLR() {
   const router = useRouter();
+  const { user } = useAuth();
+  // LR Creator doesn't choose freight terms; the LR gets the default ("To Pay").
+  const showFreightTerms = user?.role !== "creator";
   const [vehicles, setVehicles] = useState([]);
   const [clients, setClients] = useState([]);
   const [error, setError] = useState("");
@@ -101,6 +105,7 @@ export default function NewLR() {
     const filled = new Set();
     const patch = {};
     for (const key of Object.keys(SCANNABLE)) {
+      if (key === "freightTerms" && !showFreightTerms) continue;
       if (fields[key]) {
         patch[key] = fields[key];
         filled.add(key);
@@ -162,8 +167,10 @@ export default function NewLR() {
     }
     setSaving(true);
     try {
+      const { freightTerms, ...rest } = form;
       const lr = await api.lrs.create({
-        ...form,
+        ...rest,
+        ...(showFreightTerms ? { freightTerms } : {}),
         vehicleId: form.vehicleId ? Number(form.vehicleId) : null,
         amount: totalAmount,
         items,
@@ -443,6 +450,7 @@ export default function NewLR() {
                 onChange={(e) => updateField("ewayBillNo", e.target.value)}
               />
             </Field>
+            {showFreightTerms && (
             <Field label="Freight Terms" ai={aiFilled.has("freightTerms")}>
               <Select
                 value={form.freightTerms}
@@ -454,6 +462,7 @@ export default function NewLR() {
                 ]}
               />
             </Field>
+            )}
           </div>
           <p className="text-xs text-on-surface-variant bg-surface-container rounded-lg px-md py-sm">
             With a vehicle selected, the LR goes straight to <strong>In Transit</strong>. Without

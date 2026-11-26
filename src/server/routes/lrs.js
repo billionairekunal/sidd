@@ -342,7 +342,8 @@ export const create = route(requireRole(["owner", "dispatcher", "creator"]), asy
         invoiceNo || null,
         deliveryAt || null,
         ewayBillNo || null,
-        freightTerms || "To Pay",
+        // LR Creator doesn't set freight terms — always the default.
+        (req.user?.role !== "creator" && freightTerms) || "To Pay",
         amount || 0,
         lrStatus,
         remarks || null,
