@@ -4,13 +4,13 @@ import { db } from "../db.js";
 import { JWT_SECRET, route } from "../auth.js";
 
 
-export const login = route({ auth: false }, (req, res) => {
+export const login = route({ auth: false }, async (req, res) => {
   const { employeeId, password } = req.body || {};
   if (!employeeId || !password) {
     return res.status(400).json({ error: "Employee ID and password are required" });
   }
 
-  const user = db
+  const user = await db
     .prepare("SELECT * FROM users WHERE employee_id = ?")
     .get(employeeId.trim());
 

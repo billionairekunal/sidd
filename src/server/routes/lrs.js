@@ -1,6 +1,5 @@
-import { db, withTransaction } from "../db.js";
+import { db, withTransaction, NOW, TODAY_IST, istDate } from "../db.js";
 import { requireRole, route } from "../auth.js";
-
 
 const STATUSES = ["Draft", "In Transit", "Delivered", "Paid", "Disputed", "Cancelled"];
 
@@ -28,17 +27,30 @@ const VEHICLE_STATUS_BY_LR_STATUS = {
   Cancelled: "Available",
 };
 
-function serializeLr(row) {
-  if (!row) return row;
-  const items = db.prepare("SELECT * FROM lr_items WHERE lr_id = ? ORDER BY id").all(row.id);
-  const statusLog = db
-    .prepare("SELECT * FROM lr_status_log WHERE lr_id = ? ORDER BY changed_at")
-    .all(row.id);
-  const vehicle = row.vehicle_id
-    ? db.prepare("SELECT * FROM vehicles WHERE id = ?").get(row.vehicle_id)
-    : null;
-  return { ...row, items, statusLog, vehicle };
+const count = async (text, ...params) => (await db.prepare(text).get(...params)).c;
+const getLr = (id) => db.prepare("SELECT * FROM lrs WHERE id = ?").get(id);
+
+// Attach items, status log and vehicle to LR rows — 3 queries for the whole
+// page instead of 3 per LR (the database is remote now).
+async function serializeMany(rows) {
+  if (!rows.length) return [];
+  const ids = rows.map((r) => r.id);
+  const vehicleIds = [...new Set(rows.map((r) => r.vehicle_id).filter(Boolean))];
+  const [items, logs, vehicles] = await Promise.all([
+    db.prepare("SELECT * FROM lr_items WHERE lr_id = ANY(?::int[]) ORDER BY id").all(ids),
+    db.prepare("SELECT * FROM lr_status_log WHERE lr_id = ANY(?::int[]) ORDER BY changed_at, id").all(ids),
+    vehicleIds.length ? db.prepare("SELECT * FROM vehicles WHERE id = ANY(?::int[])").all(vehicleIds) : [],
+  ]);
+  const vehicleById = new Map(vehicles.map((v) => [v.id, v]));
+  return rows.map((row) => ({
+    ...row,
+    items: items.filter((i) => i.lr_id === row.id),
+    statusLog: logs.filter((l) => l.lr_id === row.id),
+    vehicle: row.vehicle_id ? vehicleById.get(row.vehicle_id) ?? null : null,
+  }));
 }
+
+const serializeLr = async (row) => (row ? (await serializeMany([row]))[0] : row);
 
 function localDateString(date) {
   const yyyy = date.getFullYear();
@@ -47,19 +59,17 @@ function localDateString(date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function nextLrNumber() {
+async function nextLrNumber() {
   const now = new Date();
   const yy = String(now.getFullYear()).slice(-2);
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const prefix = `LR-${yy}${mm}-`;
-  const row = db
-    .prepare("SELECT COUNT(*) AS c FROM lrs WHERE lr_no LIKE ?")
-    .get(`${prefix}%`);
-  const seq = String(row.c + 101).padStart(3, "0");
+  const c = await count("SELECT COUNT(*) AS c FROM lrs WHERE lr_no LIKE ?", `${prefix}%`);
+  const seq = String(c + 101).padStart(3, "0");
   return `${prefix}${seq}`;
 }
 
-export const list = route((req, res) => {
+export const list = route(async (req, res) => {
   const { status, dateFrom, dateTo, search, page = "1", pageSize = "10" } = req.query;
 
   const clauses = [];
@@ -77,65 +87,62 @@ export const list = route((req, res) => {
     params.push(dateTo);
   }
   if (search) {
-    clauses.push("(lr_no LIKE ? OR consignor_name LIKE ? OR invoice_no LIKE ?)");
+    // ILIKE: case-insensitive, like SQLite's LIKE was.
+    clauses.push("(lr_no ILIKE ? OR consignor_name ILIKE ? OR invoice_no ILIKE ?)");
     params.push(`%${search}%`, `%${search}%`, `%${search}%`);
   }
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
 
-  const total = db.prepare(`SELECT COUNT(*) AS c FROM lrs ${where}`).get(...params).c;
-
   const limit = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 10));
   const offset = (Math.max(1, parseInt(page, 10) || 1) - 1) * limit;
 
-  const rows = db
-    .prepare(
-      `SELECT * FROM lrs ${where} ORDER BY lr_date DESC, id DESC LIMIT ? OFFSET ?`
-    )
-    .all(...params, limit, offset);
+  const [total, rows] = await Promise.all([
+    count(`SELECT COUNT(*) AS c FROM lrs ${where}`, ...params),
+    db.prepare(`SELECT * FROM lrs ${where} ORDER BY lr_date DESC, id DESC LIMIT ? OFFSET ?`).all(...params, limit, offset),
+  ]);
 
   res.json({
-    data: rows.map(serializeLr),
+    data: await serializeMany(rows),
     total,
     page: Number(page),
     pageSize: limit,
   });
 });
 
-export const summary = route(requireRole(["owner", "dispatcher"]), (req, res) => {
-  const activeTrips = db
-    .prepare("SELECT COUNT(*) AS c FROM lrs WHERE status = 'In Transit'")
-    .get().c;
-  const pendingPods = db
-    .prepare("SELECT COUNT(*) AS c FROM lrs WHERE status = 'In Transit' AND delivery_at IS NOT NULL")
-    .get().c;
+export const summary = route(requireRole(["owner", "dispatcher"]), async (req, res) => {
   const today = localDateString(new Date());
-  const totalToday = db
-    .prepare("SELECT COUNT(*) AS c FROM lrs WHERE lr_date = ?")
-    .get(today).c;
-  const drafts = db.prepare("SELECT COUNT(*) AS c FROM lrs WHERE status = 'Draft'").get().c;
-  const disputed = db.prepare("SELECT COUNT(*) AS c FROM lrs WHERE status = 'Disputed'").get().c;
-  const pendingInvoices = db
-    .prepare("SELECT COUNT(*) AS c FROM lrs WHERE status IN ('Delivered') AND (invoice_no IS NULL OR invoice_no = '')")
-    .get().c;
   const thirtyDaysAgo = localDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
-  const revenue30d = db
-    .prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM lrs WHERE lr_date >= ? AND status != 'Cancelled'")
-    .get(thirtyDaysAgo).total;
-  // "Delayed": still in transit past its own dispatch day — a proxy in the
-  // absence of a modeled ETA/expected-transit-time field.
-  const delayed = db
-    .prepare("SELECT COUNT(*) AS c FROM lrs WHERE status = 'In Transit' AND lr_date < ?")
-    .get(today).c;
-  const deliveredToday = db
-    .prepare(
+
+  const [
+    activeTrips,
+    pendingPods,
+    totalToday,
+    drafts,
+    disputed,
+    pendingInvoices,
+    revenue,
+    delayed,
+    deliveredToday,
+    recentRows,
+  ] = await Promise.all([
+    count("SELECT COUNT(*) AS c FROM lrs WHERE status = 'In Transit'"),
+    count("SELECT COUNT(*) AS c FROM lrs WHERE status = 'In Transit' AND delivery_at IS NOT NULL"),
+    count("SELECT COUNT(*) AS c FROM lrs WHERE lr_date = ?", today),
+    count("SELECT COUNT(*) AS c FROM lrs WHERE status = 'Draft'"),
+    count("SELECT COUNT(*) AS c FROM lrs WHERE status = 'Disputed'"),
+    count("SELECT COUNT(*) AS c FROM lrs WHERE status IN ('Delivered') AND (invoice_no IS NULL OR invoice_no = '')"),
+    db
+      .prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM lrs WHERE lr_date >= ? AND status != 'Cancelled'")
+      .get(thirtyDaysAgo),
+    // "Delayed": still in transit past its own dispatch day — a proxy in the
+    // absence of a modeled ETA/expected-transit-time field.
+    count("SELECT COUNT(*) AS c FROM lrs WHERE status = 'In Transit' AND lr_date < ?", today),
+    count(
       `SELECT COUNT(*) AS c FROM lr_status_log
-       WHERE status = 'Delivered' AND date(changed_at, 'localtime') = date('now', 'localtime')`
-    )
-    .get().c;
-  const recent = db
-    .prepare("SELECT * FROM lrs ORDER BY lr_date DESC, id DESC LIMIT 5")
-    .all()
-    .map(serializeLr);
+       WHERE status = 'Delivered' AND ${istDate("changed_at")} = ${TODAY_IST}`
+    ),
+    db.prepare("SELECT * FROM lrs ORDER BY lr_date DESC, id DESC LIMIT 5").all(),
+  ]);
 
   res.json({
     activeTrips,
@@ -144,23 +151,25 @@ export const summary = route(requireRole(["owner", "dispatcher"]), (req, res) =>
     drafts,
     disputed,
     pendingInvoices,
-    revenue30d,
+    revenue30d: revenue.total,
     delayed,
     deliveredToday,
-    recent,
+    recent: await serializeMany(recentRows),
   });
 });
 
-export const reconciliation = route(requireRole(["owner", "dispatcher", "receiver"]), (req, res) => {
-  const lrs = db
-    .prepare(
-      `SELECT id, lr_no, lr_date, consignor_name, amount, status
-       FROM lrs
-       WHERE status NOT IN ('Draft', 'Cancelled')
-       ORDER BY lr_date DESC, id DESC`
-    )
-    .all();
-  const clients = db.prepare("SELECT name, payment_terms_days FROM clients").all();
+export const reconciliation = route(requireRole(["owner", "dispatcher", "receiver"]), async (req, res) => {
+  const [lrs, clients] = await Promise.all([
+    db
+      .prepare(
+        `SELECT id, lr_no, lr_date, consignor_name, amount, status
+         FROM lrs
+         WHERE status NOT IN ('Draft', 'Cancelled')
+         ORDER BY lr_date DESC, id DESC`
+      )
+      .all(),
+    db.prepare("SELECT name, payment_terms_days FROM clients").all(),
+  ]);
   const termsByClient = new Map(clients.map((c) => [c.name.toLowerCase(), c.payment_terms_days]));
 
   const today = new Date();
@@ -196,8 +205,8 @@ export const reconciliation = route(requireRole(["owner", "dispatcher", "receive
   res.json({ totalReceivables, pendingRelease, activeCount, rows });
 });
 
-export const deliveryPending = route(requireRole(["owner", "dispatcher", "receiver"]), (req, res) => {
-  const rows = db
+export const deliveryPending = route(requireRole(["owner", "dispatcher", "receiver"]), async (req, res) => {
+  const rows = await db
     .prepare(
       `SELECT lrs.id, lrs.lr_no, lrs.lr_date, lrs.consignor_name, lrs.from_location, lrs.to_location,
               lrs.updated_at,
@@ -211,44 +220,40 @@ export const deliveryPending = route(requireRole(["owner", "dispatcher", "receiv
   res.json(rows);
 });
 
-export const deliveryLog = route(requireRole(["owner", "dispatcher", "receiver"]), (req, res) => {
+export const deliveryLog = route(requireRole(["owner", "dispatcher", "receiver"]), async (req, res) => {
   const { page = "1", pageSize = "10" } = req.query;
   const limit = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 10));
   const offset = (Math.max(1, parseInt(page, 10) || 1) - 1) * limit;
 
-  const total = db
-    .prepare("SELECT COUNT(*) AS c FROM lr_status_log WHERE status IN ('Delivered', 'Disputed')")
-    .get().c;
-
-  const todayCount = db
-    .prepare(
+  const [total, todayCount, rows] = await Promise.all([
+    count("SELECT COUNT(*) AS c FROM lr_status_log WHERE status IN ('Delivered', 'Disputed')"),
+    count(
       `SELECT COUNT(*) AS c FROM lr_status_log
-       WHERE status IN ('Delivered', 'Disputed') AND date(changed_at, 'localtime') = date('now', 'localtime')`
-    )
-    .get().c;
-
-  const rows = db
-    .prepare(
-      `SELECT lr_status_log.status, lr_status_log.changed_at, lr_status_log.note,
-              lrs.id AS lr_id, lrs.lr_no, lrs.consignor_name, lrs.from_location,
-              vehicles.vehicle_no, vehicles.driver_name,
-              users.name AS verified_by
-       FROM lr_status_log
-       JOIN lrs ON lrs.id = lr_status_log.lr_id
-       LEFT JOIN vehicles ON vehicles.id = lrs.vehicle_id
-       LEFT JOIN users ON users.id = lr_status_log.changed_by
-       WHERE lr_status_log.status IN ('Delivered', 'Disputed')
-       ORDER BY lr_status_log.changed_at DESC
-       LIMIT ? OFFSET ?`
-    )
-    .all(limit, offset);
+       WHERE status IN ('Delivered', 'Disputed') AND ${istDate("changed_at")} = ${TODAY_IST}`
+    ),
+    db
+      .prepare(
+        `SELECT lr_status_log.status, lr_status_log.changed_at, lr_status_log.note,
+                lrs.id AS lr_id, lrs.lr_no, lrs.consignor_name, lrs.from_location,
+                vehicles.vehicle_no, vehicles.driver_name,
+                users.name AS verified_by
+         FROM lr_status_log
+         JOIN lrs ON lrs.id = lr_status_log.lr_id
+         LEFT JOIN vehicles ON vehicles.id = lrs.vehicle_id
+         LEFT JOIN users ON users.id = lr_status_log.changed_by
+         WHERE lr_status_log.status IN ('Delivered', 'Disputed')
+         ORDER BY lr_status_log.changed_at DESC
+         LIMIT ? OFFSET ?`
+      )
+      .all(limit, offset),
+  ]);
 
   res.json({ data: rows, total, todayCount, page: Number(page), pageSize: limit });
 });
 
-export const updateItems = route(requireRole(["receiver"]), (req, res) => {
+export const updateItems = route(requireRole(["receiver"]), async (req, res) => {
   const { id } = req.params;
-  const lr = db.prepare("SELECT * FROM lrs WHERE id = ?").get(id);
+  const lr = await getLr(id);
   if (!lr) return res.status(404).json({ error: "LR not found" });
   if (lr.status !== "In Transit") {
     return res.status(400).json({ error: "Receiving details can only be recorded while an LR is In Transit" });
@@ -259,13 +264,13 @@ export const updateItems = route(requireRole(["receiver"]), (req, res) => {
     return res.status(400).json({ error: "items array is required" });
   }
 
-  withTransaction(() => {
+  await withTransaction(async () => {
     const update = db.prepare(
       `UPDATE lr_items SET received_qty = ?, item_condition = ?, receiving_remarks = ?
        WHERE id = ? AND lr_id = ?`
     );
     for (const item of items) {
-      update.run(
+      await update.run(
         item.receivedQty ?? null,
         item.itemCondition ?? null,
         item.receivingRemarks ?? null,
@@ -275,16 +280,16 @@ export const updateItems = route(requireRole(["receiver"]), (req, res) => {
     }
   });
 
-  res.json(serializeLr(db.prepare("SELECT * FROM lrs WHERE id = ?").get(id)));
+  res.json(await serializeLr(await getLr(id)));
 });
 
-export const get = route((req, res) => {
-  const row = db.prepare("SELECT * FROM lrs WHERE id = ?").get(req.params.id);
+export const get = route(async (req, res) => {
+  const row = await getLr(req.params.id);
   if (!row) return res.status(404).json({ error: "LR not found" });
-  res.json(serializeLr(row));
+  res.json(await serializeLr(row));
 });
 
-export const create = route(requireRole(["owner", "dispatcher", "creator"]), (req, res) => {
+export const create = route(requireRole(["owner", "dispatcher", "creator"]), async (req, res) => {
   const {
     lrDate,
     consignorName,
@@ -313,10 +318,10 @@ export const create = route(requireRole(["owner", "dispatcher", "creator"]), (re
   // it's created; without a vehicle it waits as Draft until Office marks it In
   // Transit. Delivery and payment stay with the Receiver.
   const lrStatus = vehicleId ? "In Transit" : "Draft";
-  const lrNo = nextLrNumber();
 
-  const lrId = withTransaction(() => {
-    const result = db
+  const lrId = await withTransaction(async () => {
+    const lrNo = await nextLrNumber();
+    const result = await db
       .prepare(
         `INSERT INTO lrs
           (lr_no, lr_date, consignor_name, consignor_address, consignee_name, consignee_address,
@@ -350,7 +355,7 @@ export const create = route(requireRole(["owner", "dispatcher", "creator"]), (re
       "INSERT INTO lr_items (lr_id, no_of_pkgs, said_to_contain, weight_kg, rate_per_kg, freight_amount, remarks) VALUES (?, ?, ?, ?, ?, ?, ?)"
     );
     for (const item of items || []) {
-      insertItem.run(
+      await insertItem.run(
         lrId,
         item.noOfPkgs || null,
         item.saidToContain || null,
@@ -361,27 +366,27 @@ export const create = route(requireRole(["owner", "dispatcher", "creator"]), (re
       );
     }
 
-    db.prepare(
-      "INSERT INTO lr_status_log (lr_id, status, note, changed_by) VALUES (?, ?, ?, ?)"
-    ).run(lrId, lrStatus, lrStatus === "In Transit" ? "LR created and dispatched" : "LR created", req.user?.id || null);
+    await db
+      .prepare("INSERT INTO lr_status_log (lr_id, status, note, changed_by) VALUES (?, ?, ?, ?)")
+      .run(lrId, lrStatus, lrStatus === "In Transit" ? "LR created and dispatched" : "LR created", req.user?.id || null);
 
     if (lrStatus === "In Transit") {
-      db.prepare("UPDATE vehicles SET status = 'In Transit' WHERE id = ?").run(vehicleId);
+      await db.prepare("UPDATE vehicles SET status = 'In Transit' WHERE id = ?").run(vehicleId);
     }
 
     return lrId;
   });
 
-  res.status(201).json(serializeLr(db.prepare("SELECT * FROM lrs WHERE id = ?").get(lrId)));
+  res.status(201).json(await serializeLr(await getLr(lrId)));
 });
 
-export const setStatus = route((req, res) => {
+export const setStatus = route(async (req, res) => {
   const { id } = req.params;
   const { status, note } = req.body || {};
   if (!STATUSES.includes(status)) {
     return res.status(400).json({ error: `status must be one of ${STATUSES.join(", ")}` });
   }
-  const lr = db.prepare("SELECT * FROM lrs WHERE id = ?").get(id);
+  const lr = await getLr(id);
   if (!lr) return res.status(404).json({ error: "LR not found" });
 
   const allowedRoles = TRANSITIONS[`${lr.status}->${status}`];
@@ -408,30 +413,27 @@ export const setStatus = route((req, res) => {
         ? `${RECEIVER_NOTE_BY_STATUS[status] || status} by ${req.user.name}`
         : null);
 
-  withTransaction(() => {
-    db.prepare("UPDATE lrs SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, id);
-    db.prepare(
-      "INSERT INTO lr_status_log (lr_id, status, note, changed_by) VALUES (?, ?, ?, ?)"
-    ).run(id, status, resolvedNote, req.user?.id || null);
+  await withTransaction(async () => {
+    await db.prepare(`UPDATE lrs SET status = ?, updated_at = ${NOW} WHERE id = ?`).run(status, id);
+    await db
+      .prepare("INSERT INTO lr_status_log (lr_id, status, note, changed_by) VALUES (?, ?, ?, ?)")
+      .run(id, status, resolvedNote, req.user?.id || null);
 
     if (lr.vehicle_id) {
       if (status === "In Transit") {
-        db.prepare("UPDATE vehicles SET status = 'In Transit' WHERE id = ?").run(lr.vehicle_id);
+        await db.prepare("UPDATE vehicles SET status = 'In Transit' WHERE id = ?").run(lr.vehicle_id);
       } else if (VEHICLE_STATUS_BY_LR_STATUS[status]) {
-        db.prepare("UPDATE vehicles SET status = ? WHERE id = ?").run(
-          VEHICLE_STATUS_BY_LR_STATUS[status],
-          lr.vehicle_id
-        );
+        await db.prepare("UPDATE vehicles SET status = ? WHERE id = ?").run(VEHICLE_STATUS_BY_LR_STATUS[status], lr.vehicle_id);
       }
     }
   });
 
-  res.json(serializeLr(db.prepare("SELECT * FROM lrs WHERE id = ?").get(id)));
+  res.json(await serializeLr(await getLr(id)));
 });
 
-export const update = route(requireRole(["owner", "dispatcher"]), (req, res) => {
+export const update = route(requireRole(["owner", "dispatcher"]), async (req, res) => {
   const { id } = req.params;
-  const lr = db.prepare("SELECT * FROM lrs WHERE id = ?").get(id);
+  const lr = await getLr(id);
   if (!lr) return res.status(404).json({ error: "LR not found" });
 
   const {
@@ -450,40 +452,41 @@ export const update = route(requireRole(["owner", "dispatcher"]), (req, res) => 
     remarks,
   } = req.body || {};
 
-  db.prepare(
-    `UPDATE lrs SET
-      consignor_name = COALESCE(?, consignor_name),
-      consignor_address = COALESCE(?, consignor_address),
-      consignee_name = COALESCE(?, consignee_name),
-      consignee_address = COALESCE(?, consignee_address),
-      vehicle_id = COALESCE(?, vehicle_id),
-      from_location = COALESCE(?, from_location),
-      to_location = COALESCE(?, to_location),
-      invoice_no = COALESCE(?, invoice_no),
-      delivery_at = COALESCE(?, delivery_at),
-      eway_bill_no = COALESCE(?, eway_bill_no),
-      freight_terms = COALESCE(?, freight_terms),
-      amount = COALESCE(?, amount),
-      remarks = COALESCE(?, remarks),
-      updated_at = datetime('now')
-     WHERE id = ?`
-  ).run(
-    consignorName ?? null,
-    consignorAddress ?? null,
-    consigneeName ?? null,
-    consigneeAddress ?? null,
-    vehicleId ?? null,
-    fromLocation ?? null,
-    toLocation ?? null,
-    invoiceNo ?? null,
-    deliveryAt ?? null,
-    ewayBillNo ?? null,
-    freightTerms ?? null,
-    amount ?? null,
-    remarks ?? null,
-    id
-  );
+  await db
+    .prepare(
+      `UPDATE lrs SET
+        consignor_name = COALESCE(?, consignor_name),
+        consignor_address = COALESCE(?, consignor_address),
+        consignee_name = COALESCE(?, consignee_name),
+        consignee_address = COALESCE(?, consignee_address),
+        vehicle_id = COALESCE(?::int, vehicle_id),
+        from_location = COALESCE(?, from_location),
+        to_location = COALESCE(?, to_location),
+        invoice_no = COALESCE(?, invoice_no),
+        delivery_at = COALESCE(?, delivery_at),
+        eway_bill_no = COALESCE(?, eway_bill_no),
+        freight_terms = COALESCE(?, freight_terms),
+        amount = COALESCE(?::double precision, amount),
+        remarks = COALESCE(?, remarks),
+        updated_at = ${NOW}
+       WHERE id = ?`
+    )
+    .run(
+      consignorName ?? null,
+      consignorAddress ?? null,
+      consigneeName ?? null,
+      consigneeAddress ?? null,
+      vehicleId ?? null,
+      fromLocation ?? null,
+      toLocation ?? null,
+      invoiceNo ?? null,
+      deliveryAt ?? null,
+      ewayBillNo ?? null,
+      freightTerms ?? null,
+      amount ?? null,
+      remarks ?? null,
+      id
+    );
 
-  res.json(serializeLr(db.prepare("SELECT * FROM lrs WHERE id = ?").get(id)));
+  res.json(await serializeLr(await getLr(id)));
 });
-

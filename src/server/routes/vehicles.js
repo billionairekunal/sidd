@@ -5,12 +5,12 @@ import { requireRole, route } from "../auth.js";
 const STATUSES = ["Available", "Loading", "In Transit", "Maintenance", "Idle"];
 const canManage = requireRole(["owner", "dispatcher"]);
 
-export const list = route((req, res) => {
-  const vehicles = db.prepare("SELECT * FROM vehicles ORDER BY vehicle_no").all();
+export const list = route(async (req, res) => {
+  const vehicles = await db.prepare("SELECT * FROM vehicles ORDER BY vehicle_no").all();
   res.json(vehicles);
 });
 
-export const create = route(canManage, (req, res) => {
+export const create = route(canManage, async (req, res) => {
   const { vehicleNo, vehicleType, driverName, driverPhone, affiliatedCompany, capacityKg, status } =
     req.body || {};
   if (!vehicleNo) return res.status(400).json({ error: "vehicleNo is required" });
@@ -18,7 +18,7 @@ export const create = route(canManage, (req, res) => {
     return res.status(400).json({ error: `status must be one of ${STATUSES.join(", ")}` });
   }
   try {
-    const result = db
+    const result = await db
       .prepare(
         "INSERT INTO vehicles (vehicle_no, vehicle_type, driver_name, driver_phone, affiliated_company, capacity_kg, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
       )
@@ -31,23 +31,23 @@ export const create = route(canManage, (req, res) => {
         capacityKg || null,
         status || "Available"
       );
-    const vehicle = db.prepare("SELECT * FROM vehicles WHERE id = ?").get(result.lastInsertRowid);
+    const vehicle = await db.prepare("SELECT * FROM vehicles WHERE id = ?").get(result.lastInsertRowid);
     res.status(201).json(vehicle);
   } catch (err) {
     res.status(409).json({ error: "Vehicle number already exists" });
   }
 });
 
-export const update = route(canManage, (req, res) => {
+export const update = route(canManage, async (req, res) => {
   const { id } = req.params;
-  const existing = db.prepare("SELECT * FROM vehicles WHERE id = ?").get(id);
+  const existing = await db.prepare("SELECT * FROM vehicles WHERE id = ?").get(id);
   if (!existing) return res.status(404).json({ error: "Vehicle not found" });
 
   const { vehicleType, driverName, driverPhone, affiliatedCompany, capacityKg, status } = req.body || {};
   if (status && !STATUSES.includes(status)) {
     return res.status(400).json({ error: `status must be one of ${STATUSES.join(", ")}` });
   }
-  db.prepare(
+  await db.prepare(
     `UPDATE vehicles SET
       vehicle_type = COALESCE(?, vehicle_type),
       driver_name = COALESCE(?, driver_name),
@@ -66,11 +66,11 @@ export const update = route(canManage, (req, res) => {
     id
   );
 
-  res.json(db.prepare("SELECT * FROM vehicles WHERE id = ?").get(id));
+  res.json(await db.prepare("SELECT * FROM vehicles WHERE id = ?").get(id));
 });
 
-export const remove = route(canManage, (req, res) => {
-  db.prepare("DELETE FROM vehicles WHERE id = ?").run(req.params.id);
+export const remove = route(canManage, async (req, res) => {
+  await db.prepare("DELETE FROM vehicles WHERE id = ?").run(req.params.id);
   res.status(204).end();
 });
 

@@ -63,7 +63,12 @@ export function route(...args) {
       req.body = await request.json().catch(() => undefined);
     }
 
-    await handler(req, res); // sync handlers work too
+    try {
+      await handler(req, res); // sync handlers work too
+    } catch (err) {
+      console.error(`[api] ${request.method} ${url.pathname}:`, err);
+      return Response.json({ error: "Something went wrong on the server. Please try again." }, { status: 500 });
+    }
     return res.out || Response.json({ error: "No response" }, { status: 500 });
   };
 }

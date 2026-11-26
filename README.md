@@ -7,11 +7,11 @@ Phase 2 warehouse delivery confirmation.
 
 ## Stack
 
-One **Next.js 16** (App Router) app — screens and API together. Needs Node 22.5+ (for `node:sqlite`).
+One **Next.js 16** (App Router) app — screens and API together, with the data in **Supabase (PostgreSQL)**.
 
 - `src/app/` — Next.js routes: one `page.jsx` per screen, and `api/**/route.js` for the API.
 - `src/views/` — the screen components; `src/components/` — layout, header, `Guard` (role gate).
-- `src/server/` — `db.js` (Node's built-in `node:sqlite`), `auth.js` (JWT + role checks),
+- `src/server/` — `db.js` (Supabase Postgres via the `postgres` client; creates the tables on first use), `auth.js` (JWT + role checks),
   `routes/*.js` (all API logic, including the LR status state machine).
 - Tailwind CSS 3 for styling.
 
@@ -52,8 +52,19 @@ Open http://localhost:3323 and sign in with one of three roles (toggle on the lo
 - **Office Staff:** Employee ID `EMP-4920` / password `dispatch123` — Dashboard, History (LR list), Settings, plus a "Reports" view (Live Arrivals board).
 - **Receiver:** Employee ID `REC-2001` / password `receive123` — Incoming Deliveries, Delivery Log, Inspections (your own past verifications), and Reconciliation (Payment & Finance Tracking).
 
-The SQLite database is created at `data/erp.sqlite3` on first run, seeded with demo
-vehicles and clients (no LRs — create your own from the dashboard).
+### Database (Supabase)
+
+Data lives in a Supabase Postgres project. Put the connection string in `.env.local`
+(git-ignored — never commit it). Use the **Session pooler** string (port **5432**) from
+Supabase → Connect; URL-encode special characters in the password (e.g. `@` → `%40`):
+
+```
+DATABASE_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+```
+
+On first use the app creates its tables (with Row Level Security on, so Supabase's public web
+API can't read them — only this server can) and adds demo users, vehicles and clients if empty.
+To copy data from the old local SQLite file once: `node --env-file=.env.local scripts/sqlite-to-supabase.mjs`.
 
 ## What's implemented vs. the full spec
 
