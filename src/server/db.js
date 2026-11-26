@@ -150,6 +150,19 @@ CREATE TABLE IF NOT EXISTS lr_status_log (
   changed_by integer REFERENCES users(id),
   changed_at text NOT NULL DEFAULT ${NOW}
 );
+-- Vehicle papers and registration details (from the fleet sheet). Dates are YYYY-MM-DD text.
+ALTER TABLE vehicles
+  ADD COLUMN IF NOT EXISTS owner_name text,
+  ADD COLUMN IF NOT EXISTS fuel_type text,
+  ADD COLUMN IF NOT EXISTS registration_date text,
+  ADD COLUMN IF NOT EXISTS fitness_upto text,
+  ADD COLUMN IF NOT EXISTS tax_upto text,
+  ADD COLUMN IF NOT EXISTS insurance_upto text,
+  ADD COLUMN IF NOT EXISTS pucc_upto text,
+  ADD COLUMN IF NOT EXISTS permit_upto text,
+  ADD COLUMN IF NOT EXISTS national_permit_upto text,
+  ADD COLUMN IF NOT EXISTS engine_no text,
+  ADD COLUMN IF NOT EXISTS chassis_no text;
 CREATE INDEX IF NOT EXISTS lr_items_lr_id ON lr_items (lr_id);
 CREATE INDEX IF NOT EXISTS lr_status_log_lr_id ON lr_status_log (lr_id);
 -- Supabase exposes the public schema through its web API. RLS with no policies
@@ -162,24 +175,7 @@ ALTER TABLE lr_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lr_status_log ENABLE ROW LEVEL SECURITY;
 `;
 
-// vehicle_no, vehicle_type, driver_name, driver_phone, affiliated_company, capacity_kg, status
-const DEMO_VEHICLES = [
-  ["MH-12-AB-1234", "Heavy Trailer • 22 Wheels", "Ramesh Patil", "9822011001", "Siddheshwer Transport", 9000, "In Transit"],
-  ["DL-01-XY-9876", "Medium Carrier • 10 Wheels", "Suresh Yadav", "9822011002", "Siddheshwer Transport", 7500, "Available"],
-  ["KA-05-PQ-5544", "Container Truck • 14 Wheels", "Vinod Naik", "9822011003", "Siddheshwer Transport", 12000, "Available"],
-  ["MH-14-CC-1122", "Flatbed Trailer • 18 Wheels", "Anil Shinde", "9822011004", "Siddheshwer Transport", 9000, "Maintenance"],
-  ["TN-09-MM-3333", "Heavy Trailer • 22 Wheels", "Mahesh Rao", "9822011005", "Siddheshwer Transport", 10000, "In Transit"],
-  ["MH-04-JK-8821", "Heavy Trailer • 22 Wheels", "Rajesh Kumar", "9822011006", "Siddheshwer Transport", 16000, "Available"],
-  ["KA-51-ME-4002", "Medium Carrier • 10 Wheels", "Suresh V.", "9822011007", "Siddheshwer Transport", 8000, "Available"],
-  ["TN-01-AP-5567", "Container Truck • 14 Wheels", "Mohammad Aziz", "9822011008", "Siddheshwer Transport", 13000, "Available"],
-  ["GJ-12-FF-9021", "Flatbed Trailer • 18 Wheels", "Arjun Rathore", "9822011009", "Siddheshwer Transport", 11000, "Available"],
-  ["UP-32-BK-1029", "Box Truck • 6 Wheels", "Devendra Singh", "9822011010", "Siddheshwer Transport", 5000, "Available"],
-  ["HR-55-SS-0032", "Mini Truck • 4 Wheels", "Naveen Yadav", "9822011011", "Siddheshwer Transport", 2500, "Available"],
-  ["RJ-14-CD-3344", "Heavy Trailer • 22 Wheels", "Bhupendra Singh", "9822011012", "Siddheshwer Transport", 16000, "Available"],
-  ["PB-08-GH-7788", "Container Truck • 12 Wheels", "Gurpreet Singh", "9822011013", "Siddheshwer Transport", 12000, "Available"],
-  ["WB-06-JK-1122", "Medium Carrier • 10 Wheels", "Subrata Roy", "9822011014", "Siddheshwer Transport", 8000, "Available"],
-  ["AP-09-LM-4455", "Flatbed Trailer • 16 Wheels", "Krishna Reddy", "9822011015", "Siddheshwer Transport", 10000, "Available"],
-];
+// Vehicles are real fleet data and live only in the database (Vehicles & Clients screen) — no demo trucks.
 
 const DEMO_USERS = [
   // employee_id, name, password, role
@@ -198,14 +194,6 @@ async function init() {
     if (!exists) {
       await sql`INSERT INTO users (employee_id, name, password_hash, role)
                 VALUES (${employeeId}, ${name}, ${bcrypt.hashSync(password, 10)}, ${role})`;
-    }
-  }
-
-  const [{ c: vehicleCount }] = await sql`SELECT COUNT(*) AS c FROM vehicles`;
-  if (vehicleCount === 0) {
-    for (const v of DEMO_VEHICLES) {
-      await sql`INSERT INTO vehicles (vehicle_no, vehicle_type, driver_name, driver_phone, affiliated_company, capacity_kg, status)
-                VALUES (${v[0]}, ${v[1]}, ${v[2]}, ${v[3]}, ${v[4]}, ${v[5]}, ${v[6]})`;
     }
   }
 

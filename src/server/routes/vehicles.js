@@ -11,7 +11,7 @@ export const list = route(async (req, res) => {
 });
 
 export const create = route(canManage, async (req, res) => {
-  const { vehicleNo, vehicleType, driverName, driverPhone, affiliatedCompany, capacityKg, status } =
+  const { vehicleNo, vehicleType, driverName, driverPhone, affiliatedCompany, ownerName, capacityKg, status } =
     req.body || {};
   if (!vehicleNo) return res.status(400).json({ error: "vehicleNo is required" });
   if (status && !STATUSES.includes(status)) {
@@ -20,7 +20,7 @@ export const create = route(canManage, async (req, res) => {
   try {
     const result = await db
       .prepare(
-        "INSERT INTO vehicles (vehicle_no, vehicle_type, driver_name, driver_phone, affiliated_company, capacity_kg, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO vehicles (vehicle_no, vehicle_type, driver_name, driver_phone, affiliated_company, owner_name, capacity_kg, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
       )
       .run(
         vehicleNo.trim(),
@@ -28,6 +28,7 @@ export const create = route(canManage, async (req, res) => {
         driverName || null,
         driverPhone || null,
         affiliatedCompany || null,
+        ownerName || null,
         capacityKg || null,
         status || "Available"
       );
