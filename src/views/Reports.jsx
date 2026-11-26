@@ -30,7 +30,7 @@ function arrivalInfo(lr) {
       : { etaLabel: "Today", etaTone: "text-primary-deep", statusLabel: "ON-TIME", statusTone: "bg-surface-container-high text-primary" };
   }
   if (lr.status === "Draft") {
-    return { etaLabel: "Awaiting gate-out", etaTone: "text-on-surface-variant", statusLabel: "PENDING", statusTone: "bg-lemon/10 text-lemon" };
+    return { etaLabel: "Not dispatched yet", etaTone: "text-on-surface-variant", statusLabel: "PENDING", statusTone: "bg-lemon/10 text-lemon" };
   }
   if (lr.status === "Delivered" || lr.status === "Paid") {
     return { etaLabel: "Arrived", etaTone: "text-emerald-600", statusLabel: lr.status.toUpperCase(), statusTone: "bg-emerald-600/10 text-emerald-600" };
@@ -87,7 +87,7 @@ export default function Reports() {
 
         <section className="grid grid-cols-2 gap-md md:gap-xl md:grid-cols-4">
           <MetricCard label="In-Transit Total" value={summary?.activeTrips ?? "—"} icon={<Truck className="w-4 h-4" strokeWidth={1.8} />} hint="Waiting for un-load sequence" />
-          <MetricCard label="Expected Today" value={summary?.totalToday ?? "—"} icon={<CalendarDays className="w-4 h-4" strokeWidth={1.8} />} hint={`${summary?.drafts ?? 0} drafts pending gate-out`} tone="primary" />
+          <MetricCard label="Expected Today" value={summary?.totalToday ?? "—"} icon={<CalendarDays className="w-4 h-4" strokeWidth={1.8} />} hint={`${summary?.drafts ?? 0} drafts not dispatched yet`} tone="primary" />
           <MetricCard label="Delayed" value={summary?.delayed ?? "—"} icon={<AlertTriangle className="w-4 h-4" strokeWidth={1.8} />} hint="Requires manual follow-up" tone="warn" />
           <MetricCard label="Delivered Today" value={summary?.deliveredToday ?? "—"} icon={<CheckCircle2 className="w-4 h-4" strokeWidth={1.8} />} hint="Confirmed by receiving" tone="primary" />
         </section>

@@ -9,7 +9,7 @@ const STATUSES = ["Draft", "In Transit", "Delivered", "Paid", "Disputed", "Cance
 // regardless of role — this is the authoritative check; the frontend's
 // per-role button visibility is just a convenience on top of this.
 const TRANSITIONS = {
-  "Draft->In Transit": ["security"],
+  "Draft->In Transit": ["owner", "dispatcher"],
   "Draft->Cancelled": ["owner", "dispatcher"],
   "In Transit->Delivered": ["receiver"],
   "In Transit->Disputed": ["receiver"],
@@ -196,55 +196,6 @@ export const reconciliation = route((req, res) => {
   res.json({ totalReceivables, pendingRelease, activeCount, rows });
 });
 
-export const gatePending = route((req, res) => {
-  const rows = db
-    .prepare(
-      `SELECT lrs.id, lrs.lr_no, lrs.lr_date, lrs.consignee_name, lrs.to_location, lrs.created_at,
-              vehicles.vehicle_no, vehicles.vehicle_type, vehicles.driver_name, vehicles.driver_phone
-       FROM lrs
-       JOIN vehicles ON vehicles.id = lrs.vehicle_id
-       WHERE lrs.status = 'Draft'
-       ORDER BY lrs.created_at ASC`
-    )
-    .all();
-  res.json(rows);
-});
-
-export const gateLog = route((req, res) => {
-  const { page = "1", pageSize = "10" } = req.query;
-  const limit = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 10));
-  const offset = (Math.max(1, parseInt(page, 10) || 1) - 1) * limit;
-
-  const total = db
-    .prepare("SELECT COUNT(*) AS c FROM lr_status_log WHERE status = 'In Transit'")
-    .get().c;
-
-  const todayCount = db
-    .prepare(
-      `SELECT COUNT(*) AS c FROM lr_status_log
-       WHERE status = 'In Transit' AND date(changed_at, 'localtime') = date('now', 'localtime')`
-    )
-    .get().c;
-
-  const rows = db
-    .prepare(
-      `SELECT lr_status_log.changed_at, lr_status_log.note,
-              lrs.id AS lr_id, lrs.lr_no, lrs.consignee_name, lrs.to_location,
-              vehicles.vehicle_no, vehicles.driver_name,
-              users.name AS verified_by
-       FROM lr_status_log
-       JOIN lrs ON lrs.id = lr_status_log.lr_id
-       LEFT JOIN vehicles ON vehicles.id = lrs.vehicle_id
-       LEFT JOIN users ON users.id = lr_status_log.changed_by
-       WHERE lr_status_log.status = 'In Transit'
-       ORDER BY lr_status_log.changed_at DESC
-       LIMIT ? OFFSET ?`
-    )
-    .all(limit, offset);
-
-  res.json({ data: rows, total, todayCount, page: Number(page), pageSize: limit });
-});
-
 export const deliveryPending = route((req, res) => {
   const rows = db
     .prepare(
@@ -358,9 +309,10 @@ export const create = route(requireRole(["owner", "dispatcher"]), (req, res) => 
     });
   }
 
-  // Every LR starts as Draft, full stop — gate-out (Security) and delivery
-  // (Receiver) checkpoints can't be skipped by creating an LR pre-advanced.
-  const lrStatus = "Draft";
+  // No gate-out step: an LR with a vehicle is dispatched (In Transit) as soon as
+  // it's created; without a vehicle it waits as Draft until Office marks it In
+  // Transit. Delivery and payment stay with the Receiver.
+  const lrStatus = vehicleId ? "In Transit" : "Draft";
   const lrNo = nextLrNumber();
 
   const lrId = withTransaction(() => {
@@ -411,7 +363,11 @@ export const create = route(requireRole(["owner", "dispatcher"]), (req, res) => 
 
     db.prepare(
       "INSERT INTO lr_status_log (lr_id, status, note, changed_by) VALUES (?, ?, ?, ?)"
-    ).run(lrId, lrStatus, "LR created", req.user?.id || null);
+    ).run(lrId, lrStatus, lrStatus === "In Transit" ? "LR created and dispatched" : "LR created", req.user?.id || null);
+
+    if (lrStatus === "In Transit") {
+      db.prepare("UPDATE vehicles SET status = 'In Transit' WHERE id = ?").run(vehicleId);
+    }
 
     return lrId;
   });
@@ -446,8 +402,8 @@ export const setStatus = route((req, res) => {
 
   const resolvedNote =
     note ||
-    (req.user?.role === "security"
-      ? `Gate-out verified by ${req.user.name}`
+    (status === "In Transit" && lr.status === "Draft"
+      ? `Dispatched by ${req.user?.name}`
       : req.user?.role === "receiver"
         ? `${RECEIVER_NOTE_BY_STATUS[status] || status} by ${req.user.name}`
         : null);

@@ -9,7 +9,7 @@ import StatusBadge from "../components/StatusBadge";
 import OfficeHeader from "../components/OfficeHeader";
 
 const NEXT_STATUS = {
-  Draft: ["Cancelled"],
+  Draft: ["In Transit", "Cancelled"],
   "In Transit": [],
   Delivered: ["Paid", "Disputed"],
   Paid: [],
@@ -194,10 +194,9 @@ export default function LRDetail() {
           ))}
         </ol>
 
-        {lr.status === "Draft" && lr.vehicle_id && (
+        {lr.status === "Draft" && (
           <p className="text-xs text-on-surface-variant bg-surface-container rounded-lg px-md py-sm">
-            Waiting on Security to confirm gate-out at the gate. Only Security can move this to
-            In Transit — dispatchers can't approve their own vehicle's exit.
+            This LR hasn't been dispatched yet. Mark it In Transit when the vehicle leaves.
           </p>
         )}
 

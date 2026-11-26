@@ -370,8 +370,8 @@ export default function NewLR() {
             </Field>
           </div>
           <p className="text-xs text-on-surface-variant bg-surface-container rounded-lg px-md py-sm">
-            New LRs start as <strong>Draft</strong>. The vehicle won't be marked "In Transit"
-            until security confirms gate-out from the Gate Control screen.
+            With a vehicle selected, the LR goes straight to <strong>In Transit</strong>. Without
+            one it's saved as <strong>Draft</strong> — mark it In Transit later from the LR page.
           </p>
           <Field label="Remarks">
             <textarea

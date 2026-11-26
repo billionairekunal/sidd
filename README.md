@@ -1,9 +1,9 @@
-# Transport ERP — Phase 1 (+ gate & delivery checkpoints)
+# Transport ERP — Phase 1 (+ delivery checkpoint)
 
 A working implementation of Phase 1 ("Replace paper") from `Transport_ERP_System_Design.md`:
 digital Lorry Receipt creation, a fleet/LR dashboard, and vehicle/client masters — built from
-the Siddheshwer Transport mockups. Also includes logged-in (not link-based) versions of two
-Phase 2 checkpoints: security gate-out and warehouse delivery confirmation.
+the Siddheshwer Transport mockups. Also includes a logged-in (not link-based) version of the
+Phase 2 warehouse delivery confirmation.
 
 ## Stack
 
@@ -24,10 +24,9 @@ npm run dev   # http://localhost:3323
 
 For production: `npm run build` then `npm start` (also on port 3323).
 
-Open http://localhost:3323 and sign in with one of three roles (toggle on the login screen):
+Open http://localhost:3323 and sign in with one of two roles (toggle on the login screen):
 
 - **Office Staff:** Employee ID `EMP-4920` / password `dispatch123` — Dashboard, History (LR list), Settings, plus a "Reports" view (Live Arrivals board).
-- **Security Checker:** Employee ID `SEC-1001` / password `gate123` — Gate Control + Departure Log.
 - **Receiver:** Employee ID `REC-2001` / password `receive123` — Incoming Deliveries, Delivery Log, Inspections (your own past verifications), and Reconciliation (Payment & Finance Tracking).
 
 The SQLite database is created at `data/erp.sqlite3` on first run, seeded with demo
@@ -36,11 +35,14 @@ vehicles and clients (no LRs — create your own from the dashboard).
 ## What's implemented vs. the full spec
 
 Phase 1 ("replace paper": LR creation/listing/status tracking, a fleet status dashboard, and
-vehicle/client masters) plus two Phase 2 checkpoints, each gated to its own login role with
-the LR operator deliberately excluded from self-approving:
+vehicle/client masters) plus the Phase 2 delivery checkpoint, with the LR operator deliberately excluded from
+confirming their own deliveries and payments:
 
-- **Draft → In Transit** (gate-out): only **Security** can do this. Confirmed from `/gate`
-  ("Verify & Authorize").
+- **Dispatch (→ In Transit):** there is no gate-out step. An LR created with a vehicle goes
+  straight to **In Transit** (and the vehicle is marked In Transit); one created without a
+  vehicle stays **Draft** until **Office** marks it In Transit from the LR detail page.
+  (A Security role/gate check existed earlier and was removed; old `security` accounts can no
+  longer log in.)
 - **In Transit → Delivered/Disputed** (proof of delivery): only **Receiver** can do this, from
   `/delivery` — either a quick "Mark Delivered"/"Report Issue" action, or "Inspect" first to
   record received quantity and condition per goods line item (visible afterward on the
@@ -56,7 +58,7 @@ transition names exactly which role(s) may perform it (403 otherwise). The front
 buttons are just a convenience on top of that; the API is the real gate.
 
 The rest of Phase 2+ from the spec — the driver mobile app, GPS tracking, the *external*
-link/QR-based version of gate-out and POD confirmation (no login, for staff who aren't system
+link/QR-based version of POD confirmation (no login, for staff who aren't system
 users) — is out of scope for this build.
 
 ## Office-side navigation

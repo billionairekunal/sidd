@@ -10,7 +10,6 @@ import {
   Truck,
   Wallet,
   Settings,
-  ShieldCheck,
   ClipboardList,
   PackageCheck,
   ClipboardCheck,
@@ -46,15 +45,6 @@ const NAV_BY_ROLE = {
     { section: "Finance", items: [{ to: "/payments", label: "Payments", icon: Wallet }] },
     { section: "Masters", items: [{ to: "/settings", label: "Vehicles & Clients", icon: Settings }] },
   ],
-  security: [
-    {
-      section: "Gate",
-      items: [
-        { to: "/gate", label: "Gate Control", icon: ShieldCheck },
-        { to: "/gate/log", label: "Departure Log", icon: ClipboardList },
-      ],
-    },
-  ],
   receiver: [
     {
       section: "Receiving",
@@ -76,7 +66,6 @@ const NAV_BY_ROLE = {
 const ROLE_LABEL = {
   owner: "Office Admin",
   dispatcher: "Office Staff",
-  security: "Gate Security",
   receiver: "Receiving / Warehouse",
 };
 
@@ -99,10 +88,6 @@ const BOTTOM_TABS = {
     { to: "/lrs/new", label: "New LR", icon: FilePlus2 },
     { to: "/lrs", label: "History", icon: Truck, match: (p) => p === "/lrs" || (p.startsWith("/lrs/") && p !== "/lrs/new") },
     { to: "/payments", label: "Payments", icon: Wallet },
-  ],
-  security: [
-    { to: "/gate", label: "Gate", icon: ShieldCheck },
-    { to: "/gate/log", label: "Departures", icon: ClipboardList },
   ],
   receiver: [
     { to: "/delivery", label: "Incoming", icon: PackageCheck },

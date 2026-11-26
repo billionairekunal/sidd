@@ -80,13 +80,6 @@ export const api = {
     setStatus: (id, status, note) =>
       request(`/lrs/${id}/status`, { method: "PATCH", body: { status, note } }),
     summary: () => request("/lrs/stats/summary"),
-    gatePending: () => request("/lrs/gate/pending"),
-    gateLog: (params = {}) => {
-      const qs = new URLSearchParams(
-        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== "" && v != null))
-      ).toString();
-      return request(`/lrs/gate/log${qs ? `?${qs}` : ""}`);
-    },
     deliveryPending: () => request("/lrs/delivery/pending"),
     deliveryLog: (params = {}) => {
       const qs = new URLSearchParams(

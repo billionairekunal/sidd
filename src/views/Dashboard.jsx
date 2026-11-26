@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Truck, ClipboardList, AlertTriangle, FileText, Plus, History, TrendingUp, Wallet } from "lucide-react";
+import { Truck, CheckCircle2, AlertTriangle, FileText, Plus, History, TrendingUp, Wallet } from "lucide-react";
 import { useAuth } from "../lib/AuthContext";
 import { api } from "../lib/api";
 import StatusBadge from "../components/StatusBadge";
@@ -56,11 +56,11 @@ export default function Dashboard() {
         <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
           <StatCard icon={Truck} tone="blue" label="Active Trips" value={summary?.activeTrips} hint="Currently in transit" />
           <StatCard
-            icon={ClipboardList}
-            tone="amber"
-            label="Awaiting Gate-out"
-            value={summary?.drafts}
-            hint="Draft LRs at the gate"
+            icon={CheckCircle2}
+            tone="green"
+            label="Delivered Today"
+            value={summary?.deliveredToday}
+            hint="Confirmed by receiving"
           />
           <StatCard
             icon={AlertTriangle}
@@ -201,7 +201,7 @@ export default function Dashboard() {
 
 const TONES = {
   blue: "bg-[#e8f0fe] text-[#2563eb]",
-  amber: "bg-[#fff4e5] text-[#d97706]",
+  green: "bg-[#e8f7ee] text-[#16a34a]",
   red: "bg-[#fdecec] text-[#dc2626]",
   teal: "bg-[#e3f2f6] text-[#13829f]",
 };

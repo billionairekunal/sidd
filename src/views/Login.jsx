@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   Truck,
   FileText,
-  ShieldCheck,
   PackageCheck,
   MapPin,
   Building2,
@@ -26,14 +25,6 @@ const MODES = {
     demo: "EMP-4920 / dispatch123",
     home: "/",
   },
-  security: {
-    label: "Security",
-    icon: ShieldCheck,
-    placeholder: "Ex: SEC-1001",
-    cta: "Sign In to Gate Control",
-    demo: "SEC-1001 / gate123",
-    home: "/gate",
-  },
   receiver: {
     label: "Receiver",
     icon: PackageCheck,
@@ -45,7 +36,6 @@ const MODES = {
 };
 
 const HOME_BY_ROLE = {
-  security: "/gate",
   receiver: "/delivery",
 };
 
@@ -101,12 +91,12 @@ export default function Login() {
 
         <div className="relative max-w-md">
           <h1 className="text-[34px] leading-[1.15] font-bold tracking-tight">
-            Every lorry receipt, gate-out and delivery — in one place.
+            Every lorry receipt, dispatch and delivery — in one place.
           </h1>
           <ul className="mt-8 space-y-4 text-[14px] text-white/80">
             {[
               [FileText, "Create LRs and print freight invoices in seconds"],
-              [ShieldCheck, "Security verifies every vehicle at the gate"],
+              [Truck, "Track every vehicle from dispatch to delivery"],
               [PackageCheck, "Warehouse confirms delivery and payment"],
             ].map(([Icon, text]) => (
               <li key={text} className="flex items-center gap-3">
@@ -137,7 +127,7 @@ export default function Login() {
           <h2 className="text-[26px] font-bold text-ink-secondary tracking-tight">Sign in</h2>
           <p className="text-[14px] text-ink-mute mt-1 mb-6">Choose your role and enter your employee ID.</p>
 
-          <div className="grid grid-cols-3 gap-1 p-1 rounded-lg bg-[#e9eef2] mb-6">
+          <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-[#e9eef2] mb-6">
             {Object.entries(MODES).map(([key, m]) => {
               const Icon = m.icon;
               return (

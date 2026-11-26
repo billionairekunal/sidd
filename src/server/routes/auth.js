@@ -18,6 +18,12 @@ export const login = route({ auth: false }, (req, res) => {
     return res.status(401).json({ error: "Invalid employee ID or password" });
   }
 
+  // The gate-out step (and its Security role) was removed; old Security
+  // accounts stay in the DB only because past status history references them.
+  if (user.role === "security") {
+    return res.status(403).json({ error: "Security logins are no longer used — gate-out has been removed." });
+  }
+
   const token = jwt.sign(
     { id: user.id, employeeId: user.employee_id, name: user.name, role: user.role },
     JWT_SECRET,

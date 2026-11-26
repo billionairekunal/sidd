@@ -149,7 +149,6 @@ function seedIfEmpty() {
       "INSERT INTO users (employee_id, name, password_hash, role) VALUES (?, ?, ?, ?)"
     );
     insertUser.run("EMP-4920", "Dispatch Admin", bcrypt.hashSync("dispatch123", 10), "owner");
-    insertUser.run("SEC-1001", "Gate Security", bcrypt.hashSync("gate123", 10), "security");
     insertUser.run("REC-2001", "Warehouse Receiver", bcrypt.hashSync("receive123", 10), "receiver");
   }
 
