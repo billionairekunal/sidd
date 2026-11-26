@@ -1,6 +1,6 @@
 import { db } from "../db.js";
 import { route } from "../auth.js";
-import { isDate } from "../../lib/papers.js";
+import { isDate, todayIST } from "../../lib/papers.js";
 import { CATEGORY_KEYS } from "../../lib/expenses.js";
 
 const office = { roles: ["owner", "dispatcher"] };
@@ -26,16 +26,44 @@ function clean(b = {}) {
   return [out, null];
 }
 
-// GET /api/expenses?month=YYYY-MM → that month's rows, plus month totals and name suggestions.
+const monthRange = (m) => {
+  const [y, mo] = m.split("-").map(Number);
+  return [`${m}-01`, new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10)];
+};
+
+// GET /api/expenses?from=&to=[&prev_from=&prev_to=] (or ?month=YYYY-MM)
+// → rows in the range, the previous period's total, month totals and name suggestions.
 export const list = route(office, async (req, res) => {
-  const month = /^\d{4}-\d{2}$/.test(req.query.month || "") ? req.query.month : new Date().toISOString().slice(0, 7);
-  const [rows, months, payers, payees] = await Promise.all([
-    db.prepare(`${ROW_SQL} WHERE e.exp_date LIKE ? ORDER BY e.exp_date DESC, e.id DESC`).all(`${month}-%`),
+  let { from, to, prev_from, prev_to, month } = req.query;
+  if (!isDate(from) || !isDate(to)) {
+    [from, to] = monthRange(/^\d{4}-\d{2}$/.test(month || "") ? month : todayIST().slice(0, 7));
+  }
+  const hasPrev = isDate(prev_from) && isDate(prev_to);
+  const [rows, prev, months, payers, payees] = await Promise.all([
+    db.prepare(`${ROW_SQL} WHERE e.exp_date BETWEEN ? AND ? ORDER BY e.exp_date DESC, e.id DESC`).all(from, to),
+    hasPrev
+      ? db.prepare("SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count FROM expenses WHERE exp_date BETWEEN ? AND ?").get(prev_from, prev_to)
+      : null,
     db.prepare("SELECT substr(exp_date, 1, 7) AS month, SUM(amount) AS total, COUNT(*) AS count FROM expenses GROUP BY 1 ORDER BY 1").all(),
     db.prepare("SELECT paid_by AS name FROM expenses GROUP BY paid_by ORDER BY COUNT(*) DESC").all(),
-    db.prepare("SELECT paid_to AS name FROM expenses GROUP BY paid_to ORDER BY COUNT(*) DESC LIMIT 400").all(),
+    // Each payee with what they were last paid for, so a known name fills category + vehicle.
+    db.prepare(
+      `SELECT p.name, p.n, l.category, l.vehicle_id FROM
+         (SELECT paid_to AS name, COUNT(*) AS n, MAX(id) AS last_id FROM expenses GROUP BY paid_to ORDER BY n DESC LIMIT 400) p
+       JOIN expenses l ON l.id = p.last_id ORDER BY p.n DESC`
+    ).all(),
   ]);
-  res.json({ month, rows, months, payers: payers.map((p) => p.name), payees: payees.map((p) => p.name) });
+  res.json({ from, to, rows, prev, months, payers: payers.map((p) => p.name), payees });
+});
+
+// POST /api/expenses/bulk { ids: [..], category } → set one category on many rows.
+export const bulk = route(office, async (req, res) => {
+  const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter(Number.isInteger).slice(0, 2000);
+  const { category } = req.body || {};
+  if (!ids.length) return res.status(400).json({ error: "Pick some expenses first" });
+  if (!CATEGORY_KEYS.includes(category)) return res.status(400).json({ error: "Unknown category" });
+  const r = await db.prepare(`UPDATE expenses SET category = ? WHERE id IN (${ids.map(() => "?").join(",")})`).run(category, ...ids);
+  res.json({ updated: r.changes });
 });
 
 export const create = route(office, async (req, res) => {

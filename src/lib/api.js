@@ -63,7 +63,8 @@ export const api = {
   },
 
   expenses: {
-    list: (month) => request(`/expenses?month=${month}`),
+    list: (range) => request(`/expenses?${new URLSearchParams(range)}`),
+    bulk: (ids, category) => request("/expenses/bulk", { method: "POST", body: { ids, category } }),
     create: (payload) => request("/expenses", { method: "POST", body: payload }),
     update: (id, payload) => request(`/expenses/${id}`, { method: "PATCH", body: payload }),
     remove: (id) => request(`/expenses/${id}`, { method: "DELETE" }),
