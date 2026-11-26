@@ -7,12 +7,12 @@ import { api } from "../lib/api";
 import { amountInWords } from "../lib/amountInWords";
 
 // Way Bill — same fields as the printed paper way bill, nothing extra.
-// ponytail: blessing / GSTIN / cell are blank until confirmed from the paper; each line hides while empty.
+// ponytail: blessing / cell are blank until confirmed from the paper; each line hides while empty.
 const COMPANY = {
   blessing: "",
   name: "SIDDHESHWER TRANSPORT",
   address: "A/p. Kuruli, Tal. Khed, Dist. Pune – 410 501",
-  gstin: "",
+  gstin: "27AWVPM0141M1Z2",
   cell: "",
 };
 
