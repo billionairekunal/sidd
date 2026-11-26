@@ -196,12 +196,6 @@ async function init() {
                 VALUES (${employeeId}, ${name}, ${bcrypt.hashSync(password, 10)}, ${role})`;
     }
   }
-
-  const [{ c: clientCount }] = await sql`SELECT COUNT(*) AS c FROM clients`;
-  if (clientCount === 0) {
-    for (const name of ["Kalyani Maxion Wheels", "Mercedes Benz", "Hitachi"]) {
-      await sql`INSERT INTO clients (name) VALUES (${name})`;
-    }
-  }
+  // Clients (consignors) are real data, managed in Vehicles & Clients — no demo clients.
 }
 

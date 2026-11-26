@@ -14,7 +14,10 @@ export default function ClientCombobox({ value, onChange, onPick, clients, requi
 
   const query = value.trim().toLowerCase();
   const matches = useMemo(
-    () => (query ? clients.filter((c) => c.name.toLowerCase().includes(query)) : clients),
+    () =>
+      query
+        ? clients.filter((c) => c.name.toLowerCase().includes(query) || c.gstin?.toLowerCase().includes(query))
+        : clients,
     [clients, query]
   );
   const exact = clients.find((c) => c.name.toLowerCase() === query);
@@ -94,7 +97,11 @@ export default function ClientCombobox({ value, onChange, onPick, clients, requi
               <Building2 className="w-4 h-4 mt-0.5 text-primary shrink-0" />
               <span className="min-w-0">
                 <span className="block text-[13.5px] font-semibold text-ink-secondary truncate">{c.name}</span>
-                {c.address && <span className="block text-[12px] text-ink-mute truncate">{c.address}</span>}
+                {(c.gstin || c.address) && (
+                  <span className="block text-[12px] text-ink-mute truncate">
+                    {[c.gstin && `GSTIN ${c.gstin}`, c.address].filter(Boolean).join(" · ")}
+                  </span>
+                )}
               </span>
             </li>
           ))}
