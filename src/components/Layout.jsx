@@ -45,6 +45,16 @@ const NAV_BY_ROLE = {
     { section: "Finance", items: [{ to: "/payments", label: "Payments", icon: Wallet }] },
     { section: "Masters", items: [{ to: "/settings", label: "Vehicles & Clients", icon: Settings }] },
   ],
+  // LR Creator: create LRs and look up past ones — nothing else.
+  creator: [
+    {
+      section: "Lorry Receipts",
+      items: [
+        { to: "/lrs/new", label: "New Lorry Receipt", icon: FilePlus2 },
+        { to: "/lrs", label: "LR History", icon: Truck, match: (p) => p === "/lrs" || (p.startsWith("/lrs/") && p !== "/lrs/new") },
+      ],
+    },
+  ],
   receiver: [
     {
       section: "Receiving",
@@ -64,6 +74,7 @@ const NAV_BY_ROLE = {
 };
 
 const ROLE_LABEL = {
+  creator: "LR Creator",
   owner: "Office Admin",
   dispatcher: "Office Staff",
   receiver: "Receiving / Warehouse",
@@ -89,6 +100,10 @@ const BOTTOM_TABS = {
     { to: "/lrs", label: "History", icon: Truck, match: (p) => p === "/lrs" || (p.startsWith("/lrs/") && p !== "/lrs/new") },
     { to: "/payments", label: "Payments", icon: Wallet },
   ],
+  creator: [
+    { to: "/lrs/new", label: "New LR", icon: FilePlus2 },
+    { to: "/lrs", label: "History", icon: Truck, match: (p) => p === "/lrs" || (p.startsWith("/lrs/") && p !== "/lrs/new") },
+  ],
   receiver: [
     { to: "/delivery", label: "Incoming", icon: PackageCheck },
     { to: "/delivery/log", label: "Log", icon: ClipboardList },
@@ -107,6 +122,7 @@ export default function Layout({ children }) {
 
   const isOffice = user?.role === "owner" || user?.role === "dispatcher";
   const roleKey = isOffice ? "office" : user?.role;
+  const canSearch = isOffice || user?.role === "creator";
   const groups = NAV_BY_ROLE[roleKey] || NAV_BY_ROLE.office;
   const bottomTabs = BOTTOM_TABS[roleKey] || BOTTOM_TABS.office;
   const isActive = (item) => (item.match ? item.match(pathname) : pathname === item.to);
@@ -118,14 +134,14 @@ export default function Layout({ children }) {
     function onKey(e) {
       if (e.key === "Escape") setDrawerOpen(false);
       // Ctrl/Cmd+K focuses the LR search, as in the reference design.
-      if (isOffice && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      if (canSearch && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         searchRef.current?.focus();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOffice]);
+  }, [canSearch]);
 
   function handleSearch(e) {
     e.preventDefault();
@@ -150,7 +166,7 @@ export default function Layout({ children }) {
         </button>
       </div>
 
-      {isOffice && (
+      {canSearch && (
         <form onSubmit={handleSearch} className="px-3 pb-3">
           <label className="flex items-center gap-2 h-10 md:h-9 px-2.5 rounded-md bg-white border border-[#d7e1e7] focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15 transition">
             <Search className="w-4 h-4 text-ink-mute shrink-0" />
@@ -210,7 +226,7 @@ export default function Layout({ children }) {
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] font-semibold text-ink-secondary truncate">{user?.name}</p>
           <p className="text-[10.5px] text-ink-mute truncate flex items-center gap-1">
-            {!isOffice && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="On shift" />}
+            {user?.role === "receiver" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="On shift" />}
             {ROLE_LABEL[user?.role] || user?.role} · {user?.employeeId}
           </p>
         </div>

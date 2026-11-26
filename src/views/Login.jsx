@@ -8,6 +8,7 @@ import {
   PackageCheck,
   MapPin,
   Building2,
+  FilePlus2,
   IdCard,
   Lock,
   Eye,
@@ -25,6 +26,14 @@ const MODES = {
     demo: "EMP-4920 / dispatch123",
     home: "/",
   },
+  creator: {
+    label: "LR Creator",
+    icon: FilePlus2,
+    placeholder: "Ex: CRT-3001",
+    cta: "Sign In to Create LRs",
+    demo: "CRT-3001 / create123",
+    home: "/lrs/new",
+  },
   receiver: {
     label: "Receiver",
     icon: PackageCheck,
@@ -36,6 +45,7 @@ const MODES = {
 };
 
 const HOME_BY_ROLE = {
+  creator: "/lrs/new",
   receiver: "/delivery",
 };
 
@@ -127,7 +137,7 @@ export default function Login() {
           <h2 className="text-[26px] font-bold text-ink-secondary tracking-tight">Sign in</h2>
           <p className="text-[14px] text-ink-mute mt-1 mb-6">Choose your role and enter your employee ID.</p>
 
-          <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-[#e9eef2] mb-6">
+          <div className="grid grid-cols-3 gap-1 p-1 rounded-lg bg-[#e9eef2] mb-6">
             {Object.entries(MODES).map(([key, m]) => {
               const Icon = m.icon;
               return (

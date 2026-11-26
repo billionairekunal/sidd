@@ -3,24 +3,27 @@
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Bell, Plus } from "lucide-react";
+import { useAuth } from "../lib/AuthContext";
 
 const TABS = [
-  { to: "/", label: "Overview" },
+  { to: "/", label: "Overview", officeOnly: true },
   { to: "/lrs/new", label: "Direct Dispatch" },
   { to: "/lrs", label: "History" },
-  { to: "/reports", label: "Live Arrivals" },
-  { to: "/payments", label: "Payments" },
+  { to: "/reports", label: "Live Arrivals", officeOnly: true },
+  { to: "/payments", label: "Payments", officeOnly: true },
 ];
 
 export default function OfficeHeader() {
   const router = useRouter();
   const pathname = usePathname();
+  const { user } = useAuth();
+  const tabs = user?.role === "creator" ? TABS.filter((t) => !t.officeOnly) : TABS;
 
   return (
     <header className="hidden md:block sticky top-0 z-30 bg-canvas-soft/90 backdrop-blur border-b border-hairline">
       <div className="flex items-end justify-between px-lg lg:px-xxl h-14 gap-4">
         <nav className="flex items-end gap-6 h-full min-w-0 overflow-x-auto no-scrollbar">
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
             const active = pathname === tab.to;
             return (
               <Link

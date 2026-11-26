@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/AuthContext";
 import Layout from "./Layout";
 
-const HOME_BY_ROLE = { receiver: "/delivery" };
+const HOME_BY_ROLE = { receiver: "/delivery", creator: "/lrs/new" };
 export const homeFor = (role) => HOME_BY_ROLE[role] || "/";
 
 // Client-side gate, same as the old PrivateRoute. The API still enforces roles on every request.

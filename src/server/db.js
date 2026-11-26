@@ -174,5 +174,16 @@ function seedIfEmpty() {
   }
 }
 
+// Accounts added after the first release: created on existing databases too.
+function ensureUsers() {
+  const exists = db.prepare("SELECT 1 FROM users WHERE employee_id = ?");
+  const insert = db.prepare("INSERT INTO users (employee_id, name, password_hash, role) VALUES (?, ?, ?, ?)");
+  // LR Creator: can only create LRs and view LR history / invoices.
+  if (!exists.get("CRT-3001")) {
+    insert.run("CRT-3001", "LR Creator", bcrypt.hashSync("create123", 10), "creator");
+  }
+}
+
 migrate();
 seedIfEmpty();
+ensureUsers();

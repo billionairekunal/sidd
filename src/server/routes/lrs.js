@@ -101,7 +101,7 @@ export const list = route((req, res) => {
   });
 });
 
-export const summary = route((req, res) => {
+export const summary = route(requireRole(["owner", "dispatcher"]), (req, res) => {
   const activeTrips = db
     .prepare("SELECT COUNT(*) AS c FROM lrs WHERE status = 'In Transit'")
     .get().c;
@@ -151,7 +151,7 @@ export const summary = route((req, res) => {
   });
 });
 
-export const reconciliation = route((req, res) => {
+export const reconciliation = route(requireRole(["owner", "dispatcher", "receiver"]), (req, res) => {
   const lrs = db
     .prepare(
       `SELECT id, lr_no, lr_date, consignor_name, amount, status
@@ -196,7 +196,7 @@ export const reconciliation = route((req, res) => {
   res.json({ totalReceivables, pendingRelease, activeCount, rows });
 });
 
-export const deliveryPending = route((req, res) => {
+export const deliveryPending = route(requireRole(["owner", "dispatcher", "receiver"]), (req, res) => {
   const rows = db
     .prepare(
       `SELECT lrs.id, lrs.lr_no, lrs.lr_date, lrs.consignor_name, lrs.from_location, lrs.to_location,
@@ -211,7 +211,7 @@ export const deliveryPending = route((req, res) => {
   res.json(rows);
 });
 
-export const deliveryLog = route((req, res) => {
+export const deliveryLog = route(requireRole(["owner", "dispatcher", "receiver"]), (req, res) => {
   const { page = "1", pageSize = "10" } = req.query;
   const limit = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 10));
   const offset = (Math.max(1, parseInt(page, 10) || 1) - 1) * limit;
@@ -284,7 +284,7 @@ export const get = route((req, res) => {
   res.json(serializeLr(row));
 });
 
-export const create = route(requireRole(["owner", "dispatcher"]), (req, res) => {
+export const create = route(requireRole(["owner", "dispatcher", "creator"]), (req, res) => {
   const {
     lrDate,
     consignorName,

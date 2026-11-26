@@ -3,7 +3,7 @@ import LRList from "@/views/LRList";
 
 export default function Page() {
   return (
-    <Guard roles={["owner", "dispatcher"]}>
+    <Guard roles={["owner", "dispatcher", "creator"]}>
       <LRList />
     </Guard>
   );

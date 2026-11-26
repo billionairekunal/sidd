@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "../lib/api";
+import { useAuth } from "../lib/AuthContext";
 import StatusBadge from "../components/StatusBadge";
 import OfficeHeader from "../components/OfficeHeader";
 
@@ -20,6 +21,9 @@ const NEXT_STATUS = {
 export default function LRDetail() {
   const { id } = useParams();
   const router = useRouter();
+  const { user } = useAuth();
+  // LR Creator can view LRs but not change their status (the API enforces this too).
+  const canChangeStatus = user?.role !== "creator";
   const [lr, setLr] = useState(null);
   const [error, setError] = useState("");
   const [updating, setUpdating] = useState(false);
@@ -56,7 +60,7 @@ export default function LRDetail() {
 
   if (!lr) return <div className="p-xxl text-on-surface-variant">Loading…</div>;
 
-  const nextOptions = NEXT_STATUS[lr.status] || [];
+  const nextOptions = canChangeStatus ? NEXT_STATUS[lr.status] || [] : [];
 
   return (
     <div className="flex-1 flex flex-col">
@@ -196,7 +200,9 @@ export default function LRDetail() {
 
         {lr.status === "Draft" && (
           <p className="text-xs text-on-surface-variant bg-surface-container rounded-lg px-md py-sm">
-            This LR hasn't been dispatched yet. Mark it In Transit when the vehicle leaves.
+            {canChangeStatus
+              ? "This LR hasn't been dispatched yet. Mark it In Transit when the vehicle leaves."
+              : "This LR hasn't been dispatched yet. The office will mark it In Transit when the vehicle leaves."}
           </p>
         )}
 

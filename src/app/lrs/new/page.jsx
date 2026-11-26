@@ -3,7 +3,7 @@ import NewLR from "@/views/NewLR";
 
 export default function Page() {
   return (
-    <Guard roles={["owner", "dispatcher"]}>
+    <Guard roles={["owner", "dispatcher", "creator"]}>
       <NewLR />
     </Guard>
   );

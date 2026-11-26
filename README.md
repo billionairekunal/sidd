@@ -24,7 +24,12 @@ npm run dev   # http://localhost:3323
 
 For production: `npm run build` then `npm start` (also on port 3323).
 
-Open http://localhost:3323 and sign in with one of two roles (toggle on the login screen):
+Open http://localhost:3323 and sign in with one of three roles (toggle on the login screen):
+
+- **LR Creator:** Employee ID `CRT-3001` / password `create123` — only **New Lorry Receipt** and
+  **LR History** (view LRs and print their invoices). Can't change LR status, edit LRs, add
+  vehicles/clients, or see payments/revenue — the API refuses those with 403. The account is
+  created automatically on existing databases too.
 
 - **Office Staff:** Employee ID `EMP-4920` / password `dispatch123` — Dashboard, History (LR list), Settings, plus a "Reports" view (Live Arrivals board).
 - **Receiver:** Employee ID `REC-2001` / password `receive123` — Incoming Deliveries, Delivery Log, Inspections (your own past verifications), and Reconciliation (Payment & Finance Tracking).
