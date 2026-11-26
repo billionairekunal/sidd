@@ -86,8 +86,6 @@ export default function Dashboard() {
           <OutlineButton icon={Wallet} onClick={() => router.push("/payments")}>Payments</OutlineButton>
         </section>
 
-        <PaperAlerts />
-
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
           <section className="xl:col-span-2 bg-surface rounded-lg border border-hairline shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <div className="flex items-center justify-between px-5 pt-5 pb-3">
@@ -198,6 +196,8 @@ export default function Dashboard() {
             </div>
           </section>
         </div>
+
+        <PaperAlerts />
       </div>
     </div>
   );
