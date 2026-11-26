@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken";
 
-export const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
+// The fallback is only for local development. On Vercel the code is public on
+// GitHub, so a missing JWT_SECRET must not fall back to a known value.
+export const JWT_SECRET = process.env.JWT_SECRET || (process.env.VERCEL ? null : "dev-secret-change-me");
 
 // Minimal Express-style `res` so the route handlers in ./routes stay unchanged.
 function recorder() {
@@ -35,6 +37,9 @@ export function route(...args) {
   const handler = args.pop();
   const { auth = true, roles } = args[0] || {};
   return async (request, ctx) => {
+    if (!JWT_SECRET) {
+      return Response.json({ error: "Server setup incomplete: JWT_SECRET is not set." }, { status: 500 });
+    }
     const res = recorder();
     const url = new URL(request.url);
     const req = {

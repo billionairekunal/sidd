@@ -66,6 +66,18 @@ On first use the app creates its tables (with Row Level Security on, so Supabase
 API can't read them — only this server can) and adds demo users, vehicles and clients if empty.
 To copy data from the old local SQLite file once: `node --env-file=.env.local scripts/sqlite-to-supabase.mjs`.
 
+### Deploy on Vercel
+
+Import the GitHub repo in Vercel (framework: Next.js, no other build settings needed), then add these in
+**Project → Settings → Environment Variables** and redeploy:
+
+| Name | Value |
+|---|---|
+| `DATABASE_URL` | the same Supabase session-pooler string as in `.env.local` |
+| `JWT_SECRET` | a long random string (required — logins are refused on Vercel without it) |
+| `GEMINI_API_KEY` | for Scan LR photo (optional; scanning is off without it) |
+| `GEMINI_MODEL` | optional, e.g. `gemini-flash-lite-latest` |
+
 ## What's implemented vs. the full spec
 
 Phase 1 ("replace paper": LR creation/listing/status tracking, a fleet status dashboard, and

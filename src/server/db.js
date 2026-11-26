@@ -8,25 +8,27 @@ import { AsyncLocalStorage } from "node:async_hooks";
 // calls are now async (`await db.prepare(...).get(...)`) and `?` placeholders
 // still work.
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is missing — add the Supabase connection string to .env.local");
-}
-
+// Created on first use, not at import: `next build` (e.g. on Vercel) loads these
+// modules without needing — or having — the database.
 // One client per server process (Next dev reloads modules; don't leak connections).
-export const sql =
-  globalThis.__pgClient ??
-  (globalThis.__pgClient = postgres(process.env.DATABASE_URL, {
+export function getSql() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is missing — set it in .env.local, or in the hosting provider's environment variables");
+  }
+  return (globalThis.__pgClient ??= postgres(process.env.DATABASE_URL, {
     prepare: false, // also safe if DATABASE_URL ever points at the transaction pooler
     onnotice: () => {}, // silence "already exists, skipping" from CREATE IF NOT EXISTS
-    max: 5,
+    // Serverless (Vercel) runs many small instances: keep each one's share of the pool small.
+    max: process.env.VERCEL ? 2 : 5,
     idle_timeout: 20,
     // COUNT(*) etc. come back as bigint; the app expects plain numbers.
     types: { bigint: { to: 20, from: [20], parse: (v) => Number(v), serialize: (v) => String(v) } },
   }));
+}
 
 // Statements inside withTransaction() run on the transaction's connection.
 const txStore = new AsyncLocalStorage();
-const conn = () => txStore.getStore() ?? sql;
+const conn = () => txStore.getStore() ?? getSql();
 
 const toPg = (text) => {
   let n = 0;
@@ -66,7 +68,7 @@ export const db = { prepare };
 
 export async function withTransaction(fn) {
   await ensureReady();
-  return sql.begin((tx) => txStore.run(tx, fn));
+  return getSql().begin((tx) => txStore.run(tx, fn));
 }
 
 // Timestamps stay TEXT 'YYYY-MM-DD HH:MM:SS' in UTC — the format the screens already expect.
@@ -187,6 +189,7 @@ const DEMO_USERS = [
 ];
 
 async function init() {
+  const sql = getSql();
   await sql.unsafe(SCHEMA);
 
   // Demo accounts: added if missing, on new and existing databases.

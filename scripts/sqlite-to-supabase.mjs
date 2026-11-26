@@ -3,11 +3,12 @@
 // Keeps the original ids so LR numbers, links and history stay intact.
 // Refuses to run if Supabase already has LRs (add --force to wipe and re-copy).
 import { DatabaseSync } from "node:sqlite";
-import { sql, SCHEMA } from "../src/server/db.js";
+import { getSql, SCHEMA } from "../src/server/db.js";
 
 const TABLES = ["users", "vehicles", "clients", "lrs", "lr_items", "lr_status_log"]; // parent tables first
 const force = process.argv.includes("--force");
 
+const sql = getSql();
 const lite = new DatabaseSync("data/erp.sqlite3", { readOnly: true });
 
 try {
