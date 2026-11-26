@@ -10,6 +10,7 @@ const TABS = [
   { to: "/lrs/new", label: "Direct Dispatch" },
   { to: "/lrs", label: "History" },
   { to: "/reports", label: "Live Arrivals", officeOnly: true },
+  { to: "/fleet", label: "Fleet", officeOnly: true },
   { to: "/payments", label: "Payments", officeOnly: true },
 ];
 

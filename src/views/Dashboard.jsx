@@ -7,6 +7,8 @@ import { useAuth } from "../lib/AuthContext";
 import { api } from "../lib/api";
 import StatusBadge from "../components/StatusBadge";
 import OfficeHeader from "../components/OfficeHeader";
+import { BUCKETS, RED_DAYS, paperRows, fmtDate } from "../lib/papers";
+import { BUCKET_STYLE, Plate } from "./Fleet";
 
 const greeting = () => {
   const h = new Date().getHours();
@@ -83,6 +85,8 @@ export default function Dashboard() {
           <OutlineButton icon={TrendingUp} onClick={() => router.push("/reports")}>Live Arrivals</OutlineButton>
           <OutlineButton icon={Wallet} onClick={() => router.push("/payments")}>Payments</OutlineButton>
         </section>
+
+        <PaperAlerts />
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
           <section className="xl:col-span-2 bg-surface rounded-lg border border-hairline shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
@@ -196,6 +200,78 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Vehicle papers coming due, grouped Expired / ≤5 days / ≤15 days / ≤1 month. Full list: /fleet.
+function PaperAlerts() {
+  const router = useRouter();
+  const [vehicles, setVehicles] = useState(null);
+  useEffect(() => {
+    api.vehicles.list().then(setVehicles).catch(() => setVehicles([]));
+  }, []);
+  const rows = vehicles ? paperRows(vehicles) : [];
+  const groups = BUCKETS.filter((b) => b.key !== "ok").map((b) => ({ ...b, rows: rows.filter((r) => r.bucket === b.key) }));
+  const total = groups.reduce((n, g) => n + g.rows.length, 0);
+  const SHOW = 4;
+
+  return (
+    <section className="bg-surface rounded-lg border border-hairline shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-5 pb-3">
+        <div>
+          <h2 className="text-[17px] font-bold text-ink-secondary">Vehicle Papers Due</h2>
+          <p className="text-[12.5px] text-ink-mute">
+            {!vehicles ? "Checking papers…" : total ? `${total} paper${total === 1 ? "" : "s"} expired or expiring within a month` : "All papers valid for more than a month"}
+          </p>
+        </div>
+        <button onClick={() => router.push("/fleet")} className="text-[13.5px] font-semibold text-primary hover:text-primary-press">
+          Open Fleet
+        </button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 px-5 pb-5">
+        {groups.map((g) => {
+          const s = BUCKET_STYLE[g.key];
+          return (
+            <div key={g.key} className={`rounded-lg border ${s.card} flex flex-col`}>
+              <button onClick={() => router.push(`/fleet?bucket=${g.key}`)} className="flex items-center justify-between px-3.5 pt-3 pb-2 text-left">
+                <div>
+                  <p className={`text-[11px] font-bold uppercase tracking-[0.08em] ${s.text}`}>{g.label}</p>
+                  <p className="text-[11.5px] text-ink-mute">{g.hint}</p>
+                </div>
+                <p className={`text-[26px] font-bold leading-none ${s.text}`}>{vehicles ? g.rows.length : "—"}</p>
+              </button>
+              <ul className="px-2 pb-2 space-y-1 flex-1">
+                {g.rows.slice(0, SHOW).map((r) => (
+                  <li key={r.id}>
+                    <button
+                      onClick={() => router.push(`/fleet?bucket=${g.key}`)}
+                      className={`w-full flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left ${
+                        r.days <= RED_DAYS ? "bg-[#fde3e3] shadow-[inset_3px_0_0_#dc2626]" : "bg-white/80 hover:bg-white"
+                      }`}
+                    >
+                      <span className="min-w-0">
+                        <Plate no={r.vehicle.vehicle_no} small />
+                        <span className="block text-[12px] text-ink-secondary font-medium mt-0.5 truncate">{r.paper.label}</span>
+                      </span>
+                      <span className={`text-[11.5px] font-semibold text-right shrink-0 ${r.days <= RED_DAYS ? "text-[#b91c1c]" : s.text}`}>
+                        {fmtDate(r.date)}
+                        <span className="block font-normal">{r.days < 0 ? `${-r.days}d ago` : r.days === 0 ? "today" : `in ${r.days}d`}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+                {vehicles && !g.rows.length && <li className="px-2 py-2 text-[12.5px] text-ink-mute">Nothing here</li>}
+              </ul>
+              {g.rows.length > SHOW && (
+                <button onClick={() => router.push(`/fleet?bucket=${g.key}`)} className={`px-3.5 pb-3 text-left text-[12.5px] font-semibold ${s.text}`}>
+                  +{g.rows.length - SHOW} more →
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

@@ -17,6 +17,7 @@ import {
   LogOut,
   Menu,
   X,
+  CalendarClock,
 } from "lucide-react";
 import { useAuth } from "../lib/AuthContext";
 
@@ -42,8 +43,9 @@ const NAV_BY_ROLE = {
         },
       ],
     },
+    { section: "Fleet", items: [{ to: "/fleet", label: "Fleet & Renewals", icon: CalendarClock }] },
     { section: "Finance", items: [{ to: "/payments", label: "Payments", icon: Wallet }] },
-    { section: "Masters", items: [{ to: "/settings", label: "Vehicles & Clients", icon: Settings }] },
+    { section: "Masters", items: [{ to: "/settings", label: "Clients", icon: Settings }] },
   ],
   // LR Creator: create LRs and look up past ones — nothing else.
   creator: [

@@ -58,6 +58,8 @@ export const api = {
     create: (payload) => request("/vehicles", { method: "POST", body: payload }),
     update: (id, payload) => request(`/vehicles/${id}`, { method: "PATCH", body: payload }),
     remove: (id) => request(`/vehicles/${id}`, { method: "DELETE" }),
+    renewals: (id) => request(`/vehicles/${id}/renewals`),
+    renew: (id, payload) => request(`/vehicles/${id}/renewals`, { method: "POST", body: payload }),
   },
 
   clients: {
