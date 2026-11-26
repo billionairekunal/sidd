@@ -89,5 +89,6 @@ export const api = {
     },
     updateItems: (id, items) => request(`/lrs/${id}/items`, { method: "PATCH", body: { items } }),
     reconciliationSummary: () => request("/lrs/reconciliation/summary"),
+    scan: (payload) => request("/lrs/scan", { method: "POST", body: payload }),
   },
 };

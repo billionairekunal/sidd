@@ -63,7 +63,7 @@ export function route(...args) {
       req.body = await request.json().catch(() => undefined);
     }
 
-    handler(req, res);
+    await handler(req, res); // sync handlers work too
     return res.out || Response.json({ error: "No response" }, { status: 500 });
   };
 }

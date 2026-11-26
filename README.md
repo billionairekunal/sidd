@@ -24,6 +24,24 @@ npm run dev   # http://localhost:3323
 
 For production: `npm run build` then `npm start` (also on port 3323).
 
+### Scan LR photo (auto-fill)
+
+The New LR screen (Office and LR Creator) has a **Scan LR photo** box: take or upload a photo of a
+handwritten LR / challan and the form fills itself — date, parties, addresses, route, vehicle
+(matched to your vehicle list), invoice / e-way bill no., freight terms, remarks and goods lines.
+Filled fields are highlighted "From photo · check" until edited; nothing is saved until the
+person presses Create. Photos are resized in the browser and are not stored.
+
+It uses Google's Gemini API (free tier). Put the key in `.env.local` (git-ignored, never commit it):
+
+```
+GEMINI_API_KEY=your-key-from-aistudio.google.com
+GEMINI_MODEL=gemini-flash-lite-latest   # optional; other free models are tried if it's busy
+```
+
+Note: on Gemini's free tier Google may use the uploaded photos to improve its products; the paid
+tier doesn't. Without a key, everything else works and the scan box shows a "not set up" message.
+
 Open http://localhost:3323 and sign in with one of three roles (toggle on the login screen):
 
 - **LR Creator:** Employee ID `CRT-3001` / password `create123` — only **New Lorry Receipt** and

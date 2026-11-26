@@ -6,6 +6,24 @@ import { api } from "../lib/api";
 import OfficeHeader from "../components/OfficeHeader";
 import ClientCombobox from "../components/ClientCombobox";
 import Select from "../components/Select";
+import ScanLR from "../components/ScanLR";
+
+// Form keys the photo scan can fill, and their labels for the "check these" summary.
+const SCANNABLE = {
+  lrDate: "Date",
+  consignorName: "Consignor",
+  consignorAddress: "Consignor address",
+  consigneeName: "Consignee",
+  consigneeAddress: "Consignee address",
+  fromLocation: "From",
+  toLocation: "To",
+  invoiceNo: "Invoice no.",
+  deliveryAt: "Delivery at",
+  ewayBillNo: "E-way bill no.",
+  freightTerms: "Freight terms",
+  remarks: "Remarks",
+};
+const plate = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 
 const emptyItem = () => ({
   noOfPkgs: "",
@@ -46,6 +64,9 @@ export default function NewLR() {
     status: "Draft",
   });
   const [items, setItems] = useState([emptyItem()]);
+  // Fields filled from a scanned photo: highlighted until the person edits them.
+  const [aiFilled, setAiFilled] = useState(() => new Set());
+  const [scanNote, setScanNote] = useState(null);
 
   useEffect(() => {
     api.vehicles.list().then(setVehicles).catch((err) => setError(err.message));
@@ -62,16 +83,74 @@ export default function NewLR() {
     [items]
   );
 
+  function clearAi(key) {
+    setAiFilled((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+  }
+
   function updateField(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
+    clearAi(field);
+  }
+
+  function applyScan({ legible, fields, items: scannedItems, unclearFields }) {
+    const filled = new Set();
+    const patch = {};
+    for (const key of Object.keys(SCANNABLE)) {
+      if (fields[key]) {
+        patch[key] = fields[key];
+        filled.add(key);
+      }
+    }
+
+    // Use the saved client when the scanned consignor matches one.
+    const client = fields.consignorName
+      ? clients.find((c) => c.name.toLowerCase() === fields.consignorName.toLowerCase())
+      : null;
+    if (client) {
+      patch.consignorName = client.name;
+      if (!fields.consignorAddress && client.address) {
+        patch.consignorAddress = client.address;
+        filled.add("consignorAddress");
+      }
+    }
+
+    // Pick the vehicle when the scanned number matches one in the list.
+    let vehicleNote = "";
+    if (fields.vehicleNo) {
+      const v = vehicles.find((x) => plate(x.vehicle_no) === plate(fields.vehicleNo));
+      if (v && v.status === "Available") {
+        patch.vehicleId = String(v.id);
+        filled.add("vehicleId");
+      } else {
+        vehicleNote = v
+          ? `Vehicle ${v.vehicle_no} is ${v.status.toLowerCase()} right now, so it wasn't selected.`
+          : `Vehicle "${fields.vehicleNo}" isn't in your vehicle list — pick it by hand or add it in Vehicles & Clients.`;
+      }
+    }
+
+    setForm((f) => ({ ...f, ...patch }));
+    if (scannedItems.length) {
+      setItems(scannedItems.map((i) => ({ ...emptyItem(), ...i })));
+      filled.add("items");
+    }
+    setAiFilled(filled);
+    setScanNote({ count: filled.size, legible, unclearFields, vehicleNote });
   }
 
   function updateItem(index, field, value) {
     setItems((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+    clearAi("items");
   }
 
   function applyClient(client) {
     setForm((f) => ({ ...f, consignorName: client.name, consignorAddress: client.address || "" }));
+    clearAi("consignorName");
+    clearAi("consignorAddress");
   }
 
   async function handleSubmit(e) {
@@ -108,12 +187,16 @@ export default function NewLR() {
         </p>
       </header>
 
+      <ScanLR onResult={applyScan} />
+
+      {scanNote && <ScanSummary note={scanNote} onClose={() => setScanNote(null)} />}
+
       {error && <p className="text-error bg-error-container/40 px-md py-sm rounded-lg">{error}</p>}
 
       <form onSubmit={handleSubmit} className="space-y-xl">
         <section className="bg-surface rounded-xl border border-hairline p-lg space-y-md">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-lg">
-            <Field label="Date">
+            <Field label="Date" ai={aiFilled.has("lrDate")}>
               <input
                 type="date"
                 value={form.lrDate}
@@ -122,7 +205,7 @@ export default function NewLR() {
                 required
               />
             </Field>
-            <Field label="Vehicle (available only)">
+            <Field label="Vehicle (available only)" ai={aiFilled.has("vehicleId")}>
               <Select
                 value={form.vehicleId}
                 onChange={(v) => updateField("vehicleId", v)}
@@ -141,7 +224,7 @@ export default function NewLR() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-lg pt-md border-t border-hairline">
             <div className="space-y-md">
-              <Field label="Consignor Name">
+              <Field label="Consignor Name" ai={aiFilled.has("consignorName")}>
                 <ClientCombobox
                   value={form.consignorName}
                   onChange={(v) => updateField("consignorName", v)}
@@ -150,7 +233,7 @@ export default function NewLR() {
                   required
                 />
               </Field>
-              <Field label="Consignor Address">
+              <Field label="Consignor Address" ai={aiFilled.has("consignorAddress")}>
                 <input
                   className="input"
                   value={form.consignorAddress}
@@ -159,7 +242,7 @@ export default function NewLR() {
               </Field>
             </div>
             <div className="space-y-md">
-              <Field label="Consignee Name">
+              <Field label="Consignee Name" ai={aiFilled.has("consigneeName")}>
                 <input
                   className="input"
                   value={form.consigneeName}
@@ -167,7 +250,7 @@ export default function NewLR() {
                   required
                 />
               </Field>
-              <Field label="Consignee Address">
+              <Field label="Consignee Address" ai={aiFilled.has("consigneeAddress")}>
                 <input
                   className="input"
                   value={form.consigneeAddress}
@@ -178,7 +261,7 @@ export default function NewLR() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-lg pt-md border-t border-hairline">
-            <Field label="From">
+            <Field label="From" ai={aiFilled.has("fromLocation")}>
               <input
                 className="input"
                 value={form.fromLocation}
@@ -186,7 +269,7 @@ export default function NewLR() {
                 required
               />
             </Field>
-            <Field label="To">
+            <Field label="To" ai={aiFilled.has("toLocation")}>
               <input
                 className="input"
                 value={form.toLocation}
@@ -199,7 +282,10 @@ export default function NewLR() {
 
         <section className="bg-surface rounded-xl border border-hairline p-lg space-y-md">
           <div className="flex justify-between items-center">
-            <h3 className="font-semibold text-ink-secondary">Goods & Freight</h3>
+            <h3 className="font-semibold text-ink-secondary flex items-center gap-2 flex-wrap">
+              Goods & Freight
+              {aiFilled.has("items") && <CheckTag />}
+            </h3>
             <button
               type="button"
               onClick={() => setItems((rows) => [...rows, emptyItem()])}
@@ -336,28 +422,28 @@ export default function NewLR() {
 
         <section className="bg-surface rounded-xl border border-hairline p-lg space-y-md">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-lg">
-            <Field label="Invoice No.">
+            <Field label="Invoice No." ai={aiFilled.has("invoiceNo")}>
               <input
                 className="input"
                 value={form.invoiceNo}
                 onChange={(e) => updateField("invoiceNo", e.target.value)}
               />
             </Field>
-            <Field label="Delivery At">
+            <Field label="Delivery At" ai={aiFilled.has("deliveryAt")}>
               <input
                 className="input"
                 value={form.deliveryAt}
                 onChange={(e) => updateField("deliveryAt", e.target.value)}
               />
             </Field>
-            <Field label="E-way Bill No.">
+            <Field label="E-way Bill No." ai={aiFilled.has("ewayBillNo")}>
               <input
                 className="input"
                 value={form.ewayBillNo}
                 onChange={(e) => updateField("ewayBillNo", e.target.value)}
               />
             </Field>
-            <Field label="Freight Terms">
+            <Field label="Freight Terms" ai={aiFilled.has("freightTerms")}>
               <Select
                 value={form.freightTerms}
                 onChange={(v) => updateField("freightTerms", v)}
@@ -373,7 +459,7 @@ export default function NewLR() {
             With a vehicle selected, the LR goes straight to <strong>In Transit</strong>. Without
             one it's saved as <strong>Draft</strong> — mark it In Transit later from the LR page.
           </p>
-          <Field label="Remarks">
+          <Field label="Remarks" ai={aiFilled.has("remarks")}>
             <textarea
               className="input"
               rows={2}
@@ -405,12 +491,51 @@ export default function NewLR() {
   );
 }
 
-function Field({ label, children }) {
+function Field({ label, ai = false, children }) {
   return (
     <label className="flex flex-col gap-xs text-sm">
-      <span className="font-medium text-on-surface-variant">{label}</span>
-      {children}
+      <span className="font-medium text-on-surface-variant flex items-center gap-2">
+        {label}
+        {ai && <CheckTag />}
+      </span>
+      {/* Filled from the scanned photo: highlighted until edited */}
+      <div className={ai ? "rounded-lg ring-2 ring-amber-300 bg-amber-50 [&_.input]:bg-amber-50" : ""}>{children}</div>
     </label>
+  );
+}
+
+function CheckTag() {
+  return (
+    <span className="inline-flex items-center rounded bg-amber-100 text-amber-800 text-[10.5px] font-bold uppercase tracking-wide px-1.5 py-0.5">
+      From photo · check
+    </span>
+  );
+}
+
+function ScanSummary({ note, onClose }) {
+  const unclear = note.unclearFields.length ? note.unclearFields.join(", ") : "";
+  const good = note.legible && note.count > 0;
+  return (
+    <div
+      className={`rounded-lg border px-4 py-3 text-[13px] flex gap-3 items-start ${
+        good ? "border-amber-200 bg-amber-50 text-amber-900" : "border-[#f8d4d4] bg-[#fdf2f2] text-[#991b1b]"
+      }`}
+    >
+      <div className="flex-1 space-y-1">
+        <p className="font-semibold">
+          {!note.legible
+            ? "The photo was hard to read. Please retake it in good light with the whole LR in the frame."
+            : note.count
+              ? `Filled ${note.count} field${note.count === 1 ? "" : "s"} from the photo. Please check the highlighted fields before saving.`
+              : "Couldn't find LR details in this photo. Please retake it or fill the form by hand."}
+        </p>
+        {unclear && <p>Couldn't read clearly: {unclear}.</p>}
+        {note.vehicleNote && <p>{note.vehicleNote}</p>}
+      </div>
+      <button type="button" onClick={onClose} className="text-[12px] font-semibold underline shrink-0">
+        Dismiss
+      </button>
+    </div>
   );
 }
 
